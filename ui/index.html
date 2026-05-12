@@ -360,6 +360,14 @@
     min-height: 32px;
     border-top: 1px solid rgba(0, 240, 255, 0.04);
   }
+  .timeline-hour.current-hour {
+    border-top: 2px solid var(--cyan);
+    background: rgba(0, 240, 255, 0.06);
+  }
+  .timeline-hour.current-hour .timeline-hour-label {
+    color: var(--cyan);
+    font-weight: 700;
+  }
   .timeline-hour-label {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.45rem;
@@ -1014,11 +1022,13 @@ function renderCalendar() {
     grid.appendChild(el);
   }
   
-  // Event dates for this month
+  // Event dates for this month (use local Date parsing for timezone correctness)
   const eventDates = new Set();
   calendarEvents.forEach(ev => {
-    const d = new Date(ev.start || ev.date);
-    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+    const raw = ev.start || ev.date || '';
+    if (!raw) return;
+    const d = new Date(raw);
+    if (!isNaN(d) && d.getFullYear() === calYear && d.getMonth() === calMonth) {
       eventDates.add(d.getDate());
     }
   });
@@ -1053,11 +1063,20 @@ function renderDayTimeline(events) {
   timeline.innerHTML = '';
   
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  // Use local date string (YYYY-MM-DD) to avoid UTC timezone shift
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   
-  // Filter to today's events
+  // Filter to today's events (compare local dates, handle timezone offsets in ISO strings)
   const todayEvents = events.filter(ev => {
-    const evDate = (ev.start || ev.date || '').slice(0, 10);
+    const evStart = ev.start || ev.date || '';
+    // Parse the date part — if it has timezone offset like -07:00, parse as local
+    let evDate;
+    if (evStart.includes('T')) {
+      const d = new Date(evStart);
+      evDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    } else {
+      evDate = evStart.slice(0, 10);
+    }
     return evDate === todayStr;
   });
   
@@ -1076,25 +1095,27 @@ function renderDayTimeline(events) {
     
     // Find events for this hour
     todayEvents.forEach(ev => {
+      if (ev.allDay) return; // Skip all-day events from hourly slots
       const startTime = ev.start || ev.date || '';
       let evHour = -1;
-      // Try to parse hour from ISO datetime or time string
-      if (startTime.includes('T')) {
-        evHour = parseInt(startTime.split('T')[1].split(':')[0]);
-      } else if (ev.time) {
-        evHour = parseInt(ev.time.split(':')[0]);
+      let evMin = 0;
+      // Parse using Date object for correct local timezone handling
+      if (startTime) {
+        const d = new Date(startTime);
+        evHour = d.getHours();
+        evMin = d.getMinutes();
       }
       if (evHour === h) {
         const block = document.createElement('div');
         const title = ev.title || ev.summary || 'Event';
-        const isMeeting = title.toLowerCase().includes('speaking') || title.toLowerCase().includes('meeting') || title.toLowerCase().includes('call');
+        const isMeeting = title.toLowerCase().includes('speaking') || title.toLowerCase().includes('meeting') || title.toLowerCase().includes('call') || title.toLowerCase().includes('review') || title.toLowerCase().includes('sync') || title.toLowerCase().includes('standup');
         block.className = 'timeline-event' + (isMeeting ? ' meeting' : '');
         
         const timeEl = document.createElement('div');
         timeEl.className = 'timeline-event-time';
         const startH = evHour;
-        const startM = startTime.includes('T') ? startTime.split('T')[1].split(':')[1] : '00';
-        timeEl.textContent = (startH <= 12 ? startH : startH - 12) + ':' + (startM || '00') + (startH < 12 ? ' AM' : ' PM');
+        const startM = String(evMin).padStart(2, '0');
+        timeEl.textContent = (startH === 0 ? 12 : startH <= 12 ? startH : startH - 12) + ':' + startM + (startH < 12 ? ' AM' : ' PM');
         
         const titleEl = document.createElement('div');
         titleEl.className = 'timeline-event-title';
@@ -1106,8 +1127,19 @@ function renderDayTimeline(events) {
       }
     });
     
+    // Add "now" indicator on current hour
+    if (h === today.getHours()) {
+      row.classList.add('current-hour');
+    }
+    
     row.appendChild(evContainer);
     timeline.appendChild(row);
+  }
+  
+  // Auto-scroll timeline to current hour
+  const currentHourEl = timeline.querySelector('.current-hour');
+  if (currentHourEl) {
+    currentHourEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 }
 
@@ -1123,8 +1155,23 @@ function renderTasks(tasks) {
   
   const now = new Date();
   now.setHours(0,0,0,0);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(23,59,59,999);
   
-  tasks.forEach(task => {
+  // Filter to today and tomorrow only
+  const filtered = tasks.filter(task => {
+    if (!task.due && !task.due_date) return true; // No date = show it (overdue/undated)
+    const due = new Date(task.due || task.due_date);
+    return due <= tomorrow;
+  });
+  
+  if (filtered.length === 0) {
+    list.innerHTML = '<li class="empty-msg">No tasks for today or tomorrow</li>';
+    return;
+  }
+  
+  filtered.forEach(task => {
     const li = document.createElement('li');
     li.className = 'task-item';
     
