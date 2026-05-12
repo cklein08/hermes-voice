@@ -876,6 +876,7 @@ class UIHandler(SimpleHTTPRequestHandler):
                     "end": ev.get("end", ev.get("endDate", "")),
                     "location": ev.get("location", ""),
                     "allDay": ev.get("allDay", ev.get("isAllDay", False)),
+                    "calendarId": ev.get("calendarId", ""),
                 })
             events.sort(key=lambda e: e.get("start", ""))
             self._set_cached("calendar", events)

@@ -1066,10 +1066,15 @@ function renderDayTimeline(events) {
   // Use local date string (YYYY-MM-DD) to avoid UTC timezone shift
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   
-  // Filter to today's events (compare local dates, handle timezone offsets in ISO strings)
+  // 💻Work calendar ID
+  const WORK_CAL_ID = '52639B21-7511-435C-B286-5F972450E54D';
+  
+  // Filter to today's WORK calendar events (compare local dates, handle timezone offsets)
   const todayEvents = events.filter(ev => {
+    // Only show work calendar
+    if (ev.calendarId && ev.calendarId !== WORK_CAL_ID) return false;
+    
     const evStart = ev.start || ev.date || '';
-    // Parse the date part — if it has timezone offset like -07:00, parse as local
     let evDate;
     if (evStart.includes('T')) {
       const d = new Date(evStart);
