@@ -1088,6 +1088,16 @@ function connect() {
         setStatus('PREPARING VOICE', 'active');
         break;
         
+      case 'noteplan_link':
+        // Show clickable link to the created/updated note
+        const linkEntry = document.createElement('div');
+        linkEntry.className = 'chat-entry hermes';
+        linkEntry.innerHTML = `<span class="label">HERMES</span><span class="text">📝 <a href="${data.url}" style="color: var(--cyan); text-decoration: underline; cursor: pointer;" title="${data.path}">Open ${data.filename} in NotePlan</a></span>`;
+        linkEntry.style.opacity = '1';
+        chatLog.appendChild(linkEntry);
+        chatLog.scrollTop = chatLog.scrollHeight;
+        break;
+        
       case 'tts_start':
         pendingAudioBlob = null;
         isSpeaking = true;

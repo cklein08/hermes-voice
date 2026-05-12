@@ -200,6 +200,7 @@ Use British English. Never use asterisk actions. Only spoken words.
 Be helpful and specific — summarise the key information from the tool output.
 When listing emails, mention the subject and sender so the user can ask about a specific one.
 When listing events, mention the time and title.
+For noteplan_write or noteplan_append: Do NOT read back the content that was written. Simply say something brief like "Done, I've created the dossier" or "Added to the note." The file location will be shown separately in the UI.
 {_gender_hint} Don't use their name in every reply — only at start or end of conversation."""
 
 
@@ -685,7 +686,7 @@ async def classify_and_execute(user_message):
     if not raw:
         reply = "I'm afraid I can't reach my thinking engines at the moment."
         conversation_history.append({"role": "assistant", "content": reply})
-        return reply
+        return reply, None
 
     print(f"[Hermes] Classifier output: {raw}")
 
@@ -705,7 +706,7 @@ async def classify_and_execute(user_message):
         # Fallback: treat as chat
         reply = raw if len(raw) < 500 else "I'm not quite sure what to do with that. Could you rephrase?"
         conversation_history.append({"role": "assistant", "content": reply})
-        return reply
+        return reply, None
 
     tool = action.get("tool", "chat")
     params = action.get("params", {})
@@ -714,7 +715,7 @@ async def classify_and_execute(user_message):
     if tool == "chat":
         reply = params.get("reply", "How may I help you?")
         conversation_history.append({"role": "assistant", "content": reply})
-        return reply
+        return reply, None
 
     # Run tool in thread pool (blocking I/O)
     loop = asyncio.get_event_loop()
@@ -722,9 +723,27 @@ async def classify_and_execute(user_message):
     print(f"[Hermes] Tool output ({tool}): {tool_output[:200]}")
 
     # Store tool output in conversation history so follow-ups have context
-    # (e.g., user asks "read the podcast one" after listing emails — classifier needs the IDs)
     tool_context = f"[Tool: {tool}]\n{tool_output[:2000]}"
     conversation_history.append({"role": "assistant", "content": tool_context})
+
+    # Build metadata for noteplan write/append (clickable link in UI)
+    metadata = None
+    if tool in ("noteplan_write", "noteplan_append") and ("Created note:" in tool_output or "Appended to note:" in tool_output):
+        filename = params.get("filename", "").strip()
+        if not filename.endswith(('.txt', '.md')):
+            filename += '.txt'
+        np_path = Path(NOTEPLAN_PATH).expanduser() if NOTEPLAN_PATH else None
+        work_path = np_path / "Work" if np_path and (np_path / "Work").exists() else np_path
+        if work_path:
+            full_path = work_path / filename
+            # noteplan:// URL scheme opens notes in NotePlan
+            np_url = f"noteplan://x-callback-url/openNote?filename={filename}"
+            metadata = {
+                "type": "noteplan_link",
+                "filename": filename,
+                "path": str(full_path),
+                "url": np_url,
+            }
 
     # Step 3: Format tool output into a spoken response
     format_messages = [
@@ -734,12 +753,11 @@ async def classify_and_execute(user_message):
 
     reply = await call_llm(format_messages, max_tokens=250)
     if not reply:
-        # Fallback: just return raw output trimmed
         reply = f"Here's what I found: {tool_output[:200]}"
 
     # Also store the spoken reply so conversation flows naturally
     conversation_history.append({"role": "assistant", "content": reply})
-    return reply
+    return reply, metadata
 
 
 # ── Command Handler ─────────────────────────────────────────────
@@ -748,7 +766,7 @@ async def respond_to_command(websocket, command):
     """Handle a command: classify → execute tool → format → TTS."""
     t0 = time.time()
 
-    reply = await classify_and_execute(command)
+    reply, metadata = await classify_and_execute(command)
     t1 = time.time()
     print(f'[Hermes] Total LLM+Tool: {t1-t0:.2f}s → "{reply}"')
 
@@ -757,6 +775,15 @@ async def respond_to_command(websocket, command):
         "type": "response",
         "text": reply
     }))
+
+    # Send noteplan link if a note was created/updated
+    if metadata and metadata.get("type") == "noteplan_link":
+        await websocket.send(json.dumps({
+            "type": "noteplan_link",
+            "filename": metadata["filename"],
+            "path": metadata["path"],
+            "url": metadata["url"],
+        }))
 
     # Generate and send TTS
     await websocket.send(json.dumps({"type": "tts_start"}))
