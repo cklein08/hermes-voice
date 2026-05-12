@@ -86,6 +86,7 @@ def _build_tool_list():
     if ENABLED_MODULES.get("calendar", {}).get("enabled", False):
         tools.append('- "calendar_today": Show today\'s calendar events. No params needed.')
         tools.append('- "calendar_list": Show upcoming events for N days. Params: {"days": number}')
+        tools.append('- "calendar_create": Create a new calendar event. Params: {"title": "Event Title", "start": "2026-05-27T20:30:00", "end": "2026-05-27T22:00:00", "calendar": "personal|work|family", "location": "optional address", "notes": "optional notes"}. Dates MUST be ISO-8601 format (YYYY-MM-DDTHH:MM:SS). If no end time given, default to 1 hour after start.')
 
     if ENABLED_MODULES.get("reminders", {}).get("enabled", False):
         tools.append('- "reminder_list": List all reminders across all lists. No params needed.')
@@ -132,6 +133,7 @@ def _build_tool_instructions():
 
     if ENABLED_MODULES.get("calendar", {}).get("enabled", False):
         instructions.append("When they ask about their schedule/meetings/calendar, USE the calendar tools.")
+        instructions.append('When they ask to ADD, CREATE, or SCHEDULE an event/meeting, USE calendar_create. Extract the title, date, time, and location from context. The calendar param should be: "personal" for personal events, "work" for work meetings, "family" for family events. If they say "my calendar" or "personal calendar" use "personal".')
 
     if ENABLED_MODULES.get("reminders", {}).get("enabled", False):
         instructions.append("When they ask to remind them of something, USE reminder_add.")
@@ -614,6 +616,49 @@ def execute_tool(tool, params):
         today = time.strftime("%Y-%m-%d")
         end = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400 * days))
         return _safe_tool(f'acal events list --from {today} --to {end}', "acal")
+
+    elif tool == "calendar_create":
+        if not ENABLED_MODULES.get("calendar", {}).get("enabled"):
+            return "Calendar module is not enabled."
+        title = params.get("title", "")
+        start = params.get("start", "")
+        end_time = params.get("end", "")
+        cal_name = params.get("calendar", "personal").lower()
+        location = params.get("location", "")
+        notes = params.get("notes", "")
+        
+        if not title or not start:
+            return "Missing event title or start time."
+        
+        # If no end time, default to 1 hour after start
+        if not end_time:
+            try:
+                from datetime import datetime, timedelta as td
+                dt = datetime.fromisoformat(start)
+                end_time = (dt + td(hours=1)).isoformat()
+            except Exception:
+                end_time = start
+        
+        # Map calendar name to actual calendar name/ID
+        cal_map = {
+            "personal": "🐘Personal",
+            "work": "💻Work",
+            "family": "👩‍❤️‍💋‍👨Family Events",
+            "school": "📓School",
+        }
+        acal_calendar = cal_map.get(cal_name, cal_map.get("personal"))
+        
+        # Build acal command
+        cmd = f'acal events create --calendar {json.dumps(acal_calendar)} --title {json.dumps(title)} --start {json.dumps(start)} --end {json.dumps(end_time)}'
+        if location:
+            cmd += f' --location {json.dumps(location)}'
+        if notes:
+            cmd += f' --notes {json.dumps(notes)}'
+        
+        result = _safe_tool(cmd, "acal", timeout=15)
+        if "error" not in result.lower():
+            return f"Event created: '{title}' on {start[:10]} in {acal_calendar} calendar. {result}"
+        return result
 
     # ── Reminder tools ──
     elif tool == "reminder_list":
