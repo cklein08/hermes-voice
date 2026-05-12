@@ -202,6 +202,12 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
   - 60-second cache on all endpoints
 - **Auto-refresh:** calendar/tasks/clients every 5min, tokens every 30s
 
+### Calendar Timeline Fixes
+- Work calendar events now show correctly in timeline
+- All-day events pinned at top with 📌 icon
+- Recurring/multi-day events fixed — trust acal's date range filtering instead of double-filtering by start date
+- Current hour highlighted with cyan border + auto-scroll
+
 ### Status: ✅ v5 Running — Command Center
 - Server starts and serves UI
 - TTS confirmed working with British voice
