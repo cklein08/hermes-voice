@@ -812,6 +812,157 @@ async def handle_client(websocket):
 # ── API Cache ────────────────────────────────────────────────────
 _api_cache = {}  # {endpoint: (timestamp, data)}
 _API_CACHE_TTL = 60  # seconds
+_SYSTEM_CACHE_TTL = 5  # seconds — system stats refresh frequently
+
+
+def _get_system_stats():
+    """Gather real-time system stats using macOS shell commands."""
+    import platform
+    stats = {}
+
+    os_name = "macOS" if platform.system() == "Darwin" else platform.system()
+    stats["os_name"] = os_name
+
+    # ── CPU usage via ps ──
+    try:
+        r = subprocess.run(
+            ["ps", "-A", "-o", "%cpu"], capture_output=True, text=True, timeout=5
+        )
+        lines = r.stdout.strip().splitlines()[1:]  # skip header
+        total = sum(float(l.strip()) for l in lines if l.strip())
+        # Normalize by number of CPUs
+        try:
+            ncpu = int(subprocess.run(
+                ["sysctl", "-n", "hw.logicalcpu"], capture_output=True, text=True, timeout=3
+            ).stdout.strip())
+        except Exception:
+            ncpu = 1
+        stats["cpu_percent"] = round(min(total / ncpu, 100.0), 1)
+    except Exception:
+        stats["cpu_percent"] = None
+
+    # ── RAM via vm_stat + sysctl ──
+    try:
+        mem_total_bytes = int(subprocess.run(
+            ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=3
+        ).stdout.strip())
+        ram_total_gb = mem_total_bytes / (1024 ** 3)
+
+        vm = subprocess.run(
+            ["vm_stat"], capture_output=True, text=True, timeout=3
+        ).stdout
+        # Parse page size
+        page_size = 4096
+        ps_match = re.search(r'page size of (\d+) bytes', vm)
+        if ps_match:
+            page_size = int(ps_match.group(1))
+        # Parse page counts
+        def _vm_val(key):
+            m = re.search(rf'{key}:\s+(\d+)', vm)
+            return int(m.group(1)) if m else 0
+        free = _vm_val("Pages free")
+        inactive = _vm_val("Pages inactive")
+        speculative = _vm_val("Pages speculative")
+        # "used" = total - (free + inactive + speculative) pages
+        free_bytes = (free + inactive + speculative) * page_size
+        used_bytes = mem_total_bytes - free_bytes
+        ram_used_gb = max(used_bytes, 0) / (1024 ** 3)
+        ram_percent = round((ram_used_gb / ram_total_gb) * 100, 1) if ram_total_gb else 0
+
+        stats["ram_total_gb"] = round(ram_total_gb, 2)
+        stats["ram_used_gb"] = round(ram_used_gb, 2)
+        stats["ram_percent"] = ram_percent
+    except Exception:
+        stats["ram_total_gb"] = None
+        stats["ram_used_gb"] = None
+        stats["ram_percent"] = None
+
+    # ── Disk usage via df ──
+    try:
+        r = subprocess.run(
+            ["df", "-k", "/"], capture_output=True, text=True, timeout=5
+        )
+        lines = r.stdout.strip().splitlines()
+        if len(lines) >= 2:
+            parts = lines[1].split()
+            capacity = parts[4].replace("%", "")
+            stats["disk_usage_percent"] = int(capacity)
+        else:
+            stats["disk_usage_percent"] = None
+    except Exception:
+        stats["disk_usage_percent"] = None
+
+    # ── Disk read rate (approximate snapshot) ──
+    try:
+        # Use iostat for a 1-second sample
+        r = subprocess.run(
+            ["iostat", "-d", "-c", "2", "-w", "1"], capture_output=True, text=True, timeout=5
+        )
+        lines = r.stdout.strip().splitlines()
+        # Last line has the 1-second sample
+        if len(lines) >= 2:
+            last = lines[-1].split()
+            # iostat columns: KB/t, tps, MB/s — take MB/s and convert to KB/s
+            if len(last) >= 3:
+                mbs = float(last[2])
+                stats["disk_read_rate"] = round(mbs * 1024, 1)
+            else:
+                stats["disk_read_rate"] = None
+        else:
+            stats["disk_read_rate"] = None
+    except Exception:
+        stats["disk_read_rate"] = None
+
+    # ── GPU usage ──
+    try:
+        if os_name == "macOS":
+            r = subprocess.run(
+                ["ioreg", "-r", "-d", "1", "-c", "IOAccelerator"],
+                capture_output=True, text=True, timeout=5
+            )
+            m = re.search(r'"Device Utilization %"\s*=\s*(\d+)', r.stdout)
+            stats["gpu_percent"] = int(m.group(1)) if m else None
+        else:
+            stats["gpu_percent"] = None
+    except Exception:
+        stats["gpu_percent"] = None
+
+    # ── CPU temperature ──
+    try:
+        r = subprocess.run(
+            ["osx-cpu-temp"], capture_output=True, text=True, timeout=3
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            m = re.search(r'([\d.]+)', r.stdout)
+            stats["cpu_temp"] = float(m.group(1)) if m else None
+        else:
+            stats["cpu_temp"] = None
+    except Exception:
+        stats["cpu_temp"] = None
+
+    # ── Uptime ──
+    try:
+        r = subprocess.run(
+            ["uptime"], capture_output=True, text=True, timeout=3
+        )
+        raw = r.stdout.strip()
+        # Extract "up X days, HH:MM" or similar
+        m = re.search(r'up\s+(.+?),\s+\d+\s+user', raw)
+        stats["uptime"] = m.group(1).strip() if m else raw
+    except Exception:
+        stats["uptime"] = None
+
+    # ── Process count ──
+    try:
+        r = subprocess.run(
+            "ps aux | wc -l", shell=True, capture_output=True, text=True, timeout=5
+        )
+        count = int(r.stdout.strip()) - 1  # subtract header line
+        stats["process_count"] = max(count, 0)
+    except Exception:
+        stats["process_count"] = None
+
+    return stats
 
 
 class UIHandler(SimpleHTTPRequestHandler):
@@ -859,6 +1010,8 @@ class UIHandler(SimpleHTTPRequestHandler):
             self._handle_tokens()
         elif path == "/api/briefing":
             self._handle_briefing()
+        elif path == "/api/system":
+            self._handle_system()
         elif path.startswith("/api/"):
             self._send_json({"error": "Unknown API endpoint"}, 404)
         else:
@@ -1034,6 +1187,24 @@ class UIHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"[Hermes] /api/briefing error: {e}")
             self._send_json({})
+
+    # ── /api/system ───────────────────────────────────────────────
+
+    def _handle_system(self):
+        # Use shorter TTL for system stats (5 seconds)
+        cached = self._get_cached("system")
+        if cached is not None:
+            # Check against the shorter TTL
+            ts, _ = _api_cache.get("system", (0, None))
+            if time.time() - ts < _SYSTEM_CACHE_TTL:
+                return self._send_json(cached)
+        try:
+            data = _get_system_stats()
+            _api_cache["system"] = (time.time(), data)
+            self._send_json(data)
+        except Exception as e:
+            print(f"[Hermes] /api/system error: {e}")
+            self._send_json({"error": str(e)}, 500)
 
 def run_http_server():
     server = HTTPServer((HOST, HTTP_PORT), UIHandler)

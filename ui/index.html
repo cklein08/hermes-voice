@@ -491,6 +491,239 @@
     font-style: italic;
     padding: 8px 0;
   }
+
+  /* ══════════════════════════════════════ */
+  /*  NEW: Live Clock in Header            */
+  /* ══════════════════════════════════════ */
+  .header {
+    position: relative;
+    width: 100%;
+  }
+  .header-clock {
+    position: absolute;
+    top: 10px;
+    right: 16px;
+    text-align: right;
+    z-index: 20;
+  }
+  .header-clock-time {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 3px;
+    text-shadow: 0 0 12px var(--cyan-dim);
+  }
+  .header-clock-date {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.5rem;
+    color: #4a8a9a;
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  NEW: System Monitor Panel            */
+  /* ══════════════════════════════════════ */
+  .sys-monitor {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .sys-monitor .panel-header {
+    margin-bottom: 8px;
+  }
+  .sys-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: var(--text);
+  }
+  .sys-label {
+    width: 42px;
+    flex-shrink: 0;
+    color: #4a8a9a;
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-size: 0.6rem;
+  }
+  .sys-bar-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(0, 240, 255, 0.08);
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .sys-bar-fill {
+    height: 100%;
+    background: var(--cyan);
+    transition: width 1s ease;
+    box-shadow: 0 0 4px var(--cyan-dim);
+  }
+  .sys-bar-fill.warn {
+    background: var(--orange);
+    box-shadow: 0 0 4px rgba(255,107,53,0.4);
+  }
+  .sys-bar-fill.danger {
+    background: var(--red);
+    box-shadow: 0 0 4px rgba(255,68,68,0.4);
+  }
+  .sys-val {
+    width: 38px;
+    text-align: right;
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    color: var(--cyan);
+  }
+  .sys-info-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    color: #4a8a9a;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(0,240,255,0.04);
+  }
+  .sys-info-row span {
+    color: var(--text);
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  NEW: File Upload Drop Zone           */
+  /* ══════════════════════════════════════ */
+  .file-upload-section {
+    margin-top: 20px;
+  }
+  .file-drop-zone {
+    border: 2px dashed var(--cyan-dim);
+    border-radius: 4px;
+    padding: 16px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(0, 240, 255, 0.02);
+  }
+  .file-drop-zone:hover,
+  .file-drop-zone.dragover {
+    border-color: var(--cyan);
+    background: rgba(0, 240, 255, 0.06);
+    box-shadow: 0 0 15px var(--cyan-dim);
+  }
+  .file-drop-icon {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+    opacity: 0.6;
+  }
+  .file-drop-text {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.7rem;
+    color: #4a8a9a;
+    letter-spacing: 1px;
+  }
+  .file-drop-result {
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: var(--green);
+    margin-top: 6px;
+    word-break: break-all;
+  }
+  .file-drop-result.error {
+    color: var(--red);
+  }
+  .file-drop-input {
+    display: none;
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  NEW: Status Indicators (below orb)   */
+  /* ══════════════════════════════════════ */
+  .status-badges {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: -4px;
+    margin-bottom: 6px;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  .status-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.45rem;
+    letter-spacing: 2px;
+    padding: 3px 10px;
+    border-radius: 2px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+  .status-badge.green {
+    color: var(--green);
+    border-color: rgba(68,255,136,0.3);
+    background: rgba(68,255,136,0.06);
+    text-shadow: 0 0 6px rgba(68,255,136,0.3);
+  }
+  .status-badge.orange {
+    color: var(--orange);
+    border-color: rgba(255,107,53,0.3);
+    background: rgba(255,107,53,0.06);
+    text-shadow: 0 0 6px rgba(255,107,53,0.3);
+  }
+  .status-badge.red {
+    color: var(--red);
+    border-color: rgba(255,68,68,0.3);
+    background: rgba(255,68,68,0.06);
+    text-shadow: 0 0 6px rgba(255,68,68,0.3);
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  NEW: Activity Log                    */
+  /* ══════════════════════════════════════ */
+  .activity-log-section {
+    width: 100%;
+    max-width: 600px;
+    flex-shrink: 0;
+    z-index: 10;
+    padding: 0 16px;
+    margin-bottom: 4px;
+  }
+  .activity-log-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.5rem;
+    letter-spacing: 2px;
+    color: #3a5a6a;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .activity-log {
+    height: 80px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cyan-dim) transparent;
+    background: rgba(0, 240, 255, 0.015);
+    border: 1px solid rgba(0, 240, 255, 0.05);
+    border-radius: 2px;
+    padding: 4px 8px;
+  }
+  .activity-log-entry {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    color: rgba(0, 240, 255, 0.45);
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .activity-log-entry.error {
+    color: rgba(255, 68, 68, 0.6);
+  }
+  .activity-log-entry .log-time {
+    color: rgba(0, 240, 255, 0.25);
+    margin-right: 6px;
+  }
 </style>
 </head>
 <body>
@@ -520,6 +753,30 @@
     <div class="cal-grid" id="calGrid"></div>
     <div class="day-view-header">TODAY'S SCHEDULE</div>
     <div class="day-timeline" id="dayTimeline"></div>
+
+    <!-- System Monitor -->
+    <div class="sys-monitor">
+      <div class="panel-header">SYSTEM</div>
+      <div class="sys-row">
+        <span class="sys-label">CPU</span>
+        <div class="sys-bar-track"><div class="sys-bar-fill" id="sysCpuBar" style="width:0%"></div></div>
+        <span class="sys-val" id="sysCpuVal">--%</span>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">RAM</span>
+        <div class="sys-bar-track"><div class="sys-bar-fill" id="sysRamBar" style="width:0%"></div></div>
+        <span class="sys-val" id="sysRamVal">--%</span>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">DISK</span>
+        <div class="sys-bar-track"><div class="sys-bar-fill" id="sysDiskBar" style="width:0%"></div></div>
+        <span class="sys-val" id="sysDiskVal">--%</span>
+      </div>
+      <div class="sys-info-row">
+        <div>UP: <span id="sysUptime">--</span></div>
+        <div>PROC: <span id="sysProc">--</span></div>
+      </div>
+    </div>
   </div>
 
   <!-- CENTER: Orb + Chat -->
@@ -527,6 +784,10 @@
     <div class="header">
       <h1>HERMES</h1>
       <div class="subtitle">Voice Intelligence System</div>
+      <div class="header-clock">
+        <div class="header-clock-time" id="clockTime">00:00:00</div>
+        <div class="header-clock-date" id="clockDate">---</div>
+      </div>
     </div>
 
     <div class="orb-container">
@@ -537,7 +798,17 @@
       <div class="status-text" id="status">INITIALISING</div>
     </div>
 
+    <div class="status-badges">
+      <span class="status-badge red" id="badgeCore">OFFLINE</span>
+      <span class="status-badge green" id="badgeMic">MIC READY</span>
+    </div>
+
     <div class="chat-log" id="chatLog"></div>
+
+    <div class="activity-log-section">
+      <div class="activity-log-header">ACTIVITY LOG</div>
+      <div class="activity-log" id="activityLog"></div>
+    </div>
 
     <div class="input-bar">
       <input type="text" id="textInput" placeholder="Type a command or say 'Hermes'..." autocomplete="off" />
@@ -557,6 +828,17 @@
       <ul class="client-list" id="clientList">
         <li class="empty-msg">Loading clients...</li>
       </ul>
+    </div>
+
+    <!-- File Upload -->
+    <div class="file-upload-section">
+      <div class="panel-header">FILE UPLOAD</div>
+      <div class="file-drop-zone" id="fileDropZone">
+        <div class="file-drop-icon">⬆</div>
+        <div class="file-drop-text">Drop file or click to browse</div>
+        <div class="file-drop-result" id="fileDropResult"></div>
+        <input type="file" class="file-drop-input" id="fileInput" accept=".txt,.pdf,.py,.js,.json,.csv,.md">
+      </div>
     </div>
   </div>
 
@@ -1342,6 +1624,178 @@ setInterval(fetchTokens, 30 * 1000);
 
 // ── Init WebSocket ──
 connect();
+
+// ═══════════════════════════════════════════════════
+//  NEW FEATURES
+// ═══════════════════════════════════════════════════
+
+// ── 1. Live Clock ──
+const clockTimeEl = document.getElementById('clockTime');
+const clockDateEl = document.getElementById('clockDate');
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function updateClock() {
+  const now = new Date();
+  clockTimeEl.textContent = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+  clockDateEl.textContent = DAYS[now.getDay()] + ' ' + String(now.getDate()).padStart(2,'0') + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── 2. System Monitor ──
+async function fetchSystem() {
+  try {
+    const res = await fetch('/api/system');
+    if (res.ok) {
+      const d = await res.json();
+      const cpu = d.cpu || 0;
+      const ram = d.ram || d.memory || 0;
+      const disk = d.disk || 0;
+      const uptime = d.uptime || '--';
+      const proc = d.processes || d.proc || '--';
+
+      document.getElementById('sysCpuBar').style.width = cpu + '%';
+      document.getElementById('sysCpuVal').textContent = Math.round(cpu) + '%';
+      document.getElementById('sysCpuBar').className = 'sys-bar-fill' + (cpu > 90 ? ' danger' : cpu > 70 ? ' warn' : '');
+
+      document.getElementById('sysRamBar').style.width = ram + '%';
+      document.getElementById('sysRamVal').textContent = Math.round(ram) + '%';
+      document.getElementById('sysRamBar').className = 'sys-bar-fill' + (ram > 90 ? ' danger' : ram > 70 ? ' warn' : '');
+
+      document.getElementById('sysDiskBar').style.width = disk + '%';
+      document.getElementById('sysDiskVal').textContent = Math.round(disk) + '%';
+      document.getElementById('sysDiskBar').className = 'sys-bar-fill' + (disk > 90 ? ' danger' : disk > 80 ? ' warn' : '');
+
+      document.getElementById('sysUptime').textContent = uptime;
+      document.getElementById('sysProc').textContent = proc;
+    }
+  } catch(e) {
+    // silently skip
+  }
+}
+fetchSystem();
+setInterval(fetchSystem, 5000);
+
+// ── 3. File Upload ──
+const fileDropZone = document.getElementById('fileDropZone');
+const fileInput = document.getElementById('fileInput');
+const fileDropResult = document.getElementById('fileDropResult');
+const ALLOWED_EXTS = ['.txt','.pdf','.py','.js','.json','.csv','.md'];
+
+fileDropZone.addEventListener('click', () => fileInput.click());
+fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); fileDropZone.classList.add('dragover'); });
+fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('dragover'));
+fileDropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  fileDropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFileUpload(fileInput.files[0]);
+});
+
+function handleFileUpload(file) {
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!ALLOWED_EXTS.includes(ext)) {
+    fileDropResult.textContent = 'Unsupported file type: ' + ext;
+    fileDropResult.className = 'file-drop-result error';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1];
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'file_upload', name: file.name, content: base64, mime: file.type }));
+      fileDropResult.textContent = '✓ ' + file.name;
+      fileDropResult.className = 'file-drop-result';
+      logActivity('FILE UPLOAD: ' + file.name);
+    } else {
+      fileDropResult.textContent = 'Not connected';
+      fileDropResult.className = 'file-drop-result error';
+      logActivity('FILE UPLOAD FAILED: not connected', true);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── 4. Status Badges ──
+const badgeCore = document.getElementById('badgeCore');
+const badgeMic = document.getElementById('badgeMic');
+
+function updateBadges() {
+  const connected = ws && ws.readyState === WebSocket.OPEN;
+  if (connected) {
+    badgeCore.textContent = 'AI CORE ACTIVE';
+    badgeCore.className = 'status-badge green';
+  } else {
+    badgeCore.textContent = 'OFFLINE';
+    badgeCore.className = 'status-badge red';
+  }
+  if (isRecording) {
+    badgeMic.textContent = 'MIC RECORDING';
+    badgeMic.className = 'status-badge orange';
+  } else {
+    badgeMic.textContent = 'MIC READY';
+    badgeMic.className = 'status-badge green';
+  }
+}
+setInterval(updateBadges, 500);
+
+// ── 5. Activity Log ──
+const activityLogEl = document.getElementById('activityLog');
+
+function logActivity(msg, isError) {
+  const entry = document.createElement('div');
+  entry.className = 'activity-log-entry' + (isError ? ' error' : '');
+  const now = new Date();
+  const ts = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+  entry.innerHTML = '<span class="log-time">' + ts + '</span>' + msg;
+  activityLogEl.appendChild(entry);
+  // Keep max 100 entries
+  while (activityLogEl.children.length > 100) activityLogEl.removeChild(activityLogEl.firstChild);
+  activityLogEl.scrollTop = activityLogEl.scrollHeight;
+}
+
+// Patch existing WebSocket handlers to add logging
+const _origConnect = connect;
+connect = function() {
+  _origConnect();
+  // Patch ws events after creation
+  const _origOnOpen = ws.onopen;
+  ws.onopen = function() {
+    _origOnOpen.apply(this, arguments);
+    logActivity('WebSocket CONNECTED');
+    updateBadges();
+  };
+  const _origOnClose = ws.onclose;
+  ws.onclose = function() {
+    logActivity('WebSocket DISCONNECTED', true);
+    updateBadges();
+    _origOnClose.apply(this, arguments);
+  };
+  const _origOnError = ws.onerror;
+  ws.onerror = function() {
+    logActivity('WebSocket ERROR', true);
+    _origOnError.apply(this, arguments);
+  };
+  const _origOnMessage = ws.onmessage;
+  ws.onmessage = async function(event) {
+    if (!(event.data instanceof Blob)) {
+      try {
+        const d = JSON.parse(event.data);
+        if (d.type === 'response') logActivity('HERMES response received');
+        if (d.type === 'transcription') logActivity('Transcription: ' + (d.text || '').substring(0, 40));
+        if (d.type === 'tool_output' || d.type === 'tool_result') logActivity('TOOL: ' + (d.tool || d.name || 'unknown'));
+      } catch(e) {}
+    }
+    await _origOnMessage.call(this, event);
+  };
+};
+// Reconnect with patched version
+if (ws) { ws.close(); }
+setTimeout(() => connect(), 100);
+logActivity('HERMES UI initialized');
 </script>
 </body>
 </html>
