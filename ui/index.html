@@ -1069,21 +1069,35 @@ function renderDayTimeline(events) {
   // 💻Work calendar ID
   const WORK_CAL_ID = '52639B21-7511-435C-B286-5F972450E54D';
   
-  // Filter to today's WORK calendar events (compare local dates, handle timezone offsets)
+  // Filter to today's WORK calendar events
+  // Events may have start dates before today (recurring/multi-day) but still occur today
+  // acal returns events that overlap our date range, so just filter by work calendar
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+  const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+  
   const todayEvents = events.filter(ev => {
     // Only show work calendar
     if (ev.calendarId && ev.calendarId !== WORK_CAL_ID) return false;
     
-    const evStart = ev.start || ev.date || '';
-    let evDate;
-    if (evStart.includes('T')) {
-      const d = new Date(evStart);
-      evDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    } else {
-      evDate = evStart.slice(0, 10);
-    }
-    return evDate === todayStr;
+    // acal already filtered by date range, so these events overlap today
+    // Just trust the server's date filter and show them all
+    return true;
   });
+  
+  // Show all-day events at top
+  const allDayEvents = todayEvents.filter(ev => ev.allDay);
+  if (allDayEvents.length > 0) {
+    allDayEvents.forEach(ev => {
+      const block = document.createElement('div');
+      block.className = 'timeline-event allday';
+      block.style.marginBottom = '4px';
+      const titleEl = document.createElement('div');
+      titleEl.className = 'timeline-event-title';
+      titleEl.textContent = '📌 ' + (ev.title || 'All Day');
+      block.appendChild(titleEl);
+      timeline.appendChild(block);
+    });
+  }
   
   // Build timeline hours 8-18
   for (let h = 8; h <= 18; h++) {
