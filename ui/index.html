@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HERMES</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cyan: #00f0ff;
+    --cyan-dim: #00f0ff33;
+    --cyan-glow: #00f0ff80;
+    --dark-bg: #060610;
+    --panel-bg: #0d0d15;
+    --text: #c0e8ff;
+    --orange: #ff6b35;
+    --purple: #b478ff;
+  }
+
+  body {
+    background: var(--dark-bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Scan Lines ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0, 240, 255, 0.012) 2px,
+      rgba(0, 240, 255, 0.012) 4px
+    );
+    z-index: 1000;
+  }
+
+  /* ── Header ── */
+  .header {
+    position: absolute;
+    top: 20px;
+    left: 0; right: 0;
+    text-align: center;
+    z-index: 10;
+  }
+  .header h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 12px;
+    color: var(--cyan);
+    text-shadow: 0 0 30px var(--cyan-glow), 0 0 60px var(--cyan-dim);
+  }
+  .header .subtitle {
+    font-size: 0.75rem;
+    letter-spacing: 6px;
+    color: #4a8a9a;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  /* ── Canvas (orb + pulses drawn here) ── */
+  #orbCanvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    z-index: 1;
+  }
+
+  /* ── Status ── */
+  .status {
+    position: absolute;
+    top: calc(50% + 180px);
+    text-align: center;
+    z-index: 10;
+    width: 100%;
+  }
+  .status-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 4px;
+    color: #4a8a9a;
+    text-transform: uppercase;
+    transition: color 0.3s;
+  }
+  .status-text.active { color: var(--cyan); }
+  .status-text.listening-state { color: var(--orange); }
+  .status-text.thinking-state { color: var(--purple); }
+
+  /* ── Chat Log ── */
+  .chat-log {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(600px, 90vw);
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    z-index: 10;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cyan-dim) transparent;
+  }
+  .chat-entry {
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    opacity: 0;
+    animation: fade-in 0.3s forwards;
+  }
+  .chat-entry .label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .chat-entry.user .label { color: var(--orange); }
+  .chat-entry.hermes .label { color: var(--cyan); }
+  .chat-entry .text { color: var(--text); }
+  .chat-entry.hermes .text { color: #e0f4ff; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Input Bar ── */
+  .input-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(600px, 90vw);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+  .input-bar input {
+    flex: 1;
+    background: rgba(0, 240, 255, 0.05);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-bar input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 20px var(--cyan-dim);
+  }
+  .input-bar input::placeholder { color: #3a5a6a; }
+
+  .btn {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: var(--cyan);
+    box-shadow: 0 0 20px var(--cyan-dim);
+  }
+  .btn.recording {
+    background: rgba(255, 107, 53, 0.2);
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  /* ── Corner Decorations ── */
+  .corner { position: fixed; width: 60px; height: 60px; z-index: 10; pointer-events: none; }
+  .corner::before, .corner::after { content: ''; position: absolute; background: var(--cyan-dim); }
+  .corner-tl { top: 10px; left: 10px; }
+  .corner-tl::before { width: 30px; height: 1px; top: 0; left: 0; }
+  .corner-tl::after { width: 1px; height: 30px; top: 0; left: 0; }
+  .corner-tr { top: 10px; right: 10px; }
+  .corner-tr::before { width: 30px; height: 1px; top: 0; right: 0; }
+  .corner-tr::after { width: 1px; height: 30px; top: 0; right: 0; }
+  .corner-bl { bottom: 10px; left: 10px; }
+  .corner-bl::before { width: 30px; height: 1px; bottom: 0; left: 0; }
+  .corner-bl::after { width: 1px; height: 30px; bottom: 0; left: 0; }
+  .corner-br { bottom: 10px; right: 10px; }
+  .corner-br::before { width: 30px; height: 1px; bottom: 0; right: 0; }
+  .corner-br::after { width: 1px; height: 30px; bottom: 0; right: 0; }
+</style>
+</head>
+<body>
+
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="header">
+  <h1>HERMES</h1>
+  <div class="subtitle">Voice Intelligence System</div>
+</div>
+
+<canvas id="orbCanvas" width="500" height="500"></canvas>
+
+<div class="status">
+  <div class="status-text" id="status">INITIALISING</div>
+</div>
+
+<div class="chat-log" id="chatLog"></div>
+
+<div class="input-bar">
+  <input type="text" id="textInput" placeholder="Type a command or say 'Hermes'..." autocomplete="off" />
+  <button class="btn" id="micBtn" onclick="toggleMic()">MIC</button>
+  <button class="btn" id="sendBtn" onclick="sendText()">SEND</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  HERMES ORB — Canvas-based animated orb with
+//  pulse waves, halo glow, and state transitions
+//  Inspired by FatihMakes JARVIS UI
+// ═══════════════════════════════════════════════════
+
+const canvas = document.getElementById('orbCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+
+// ── State Machine ──
+// States: 'idle', 'listening', 'thinking', 'speaking', 'processing'
+let currentState = 'idle';
+let targetColor = { r: 0, g: 200, b: 255 };  // cyan
+let currentColor = { r: 0, g: 200, b: 255 };
+
+const STATE_COLORS = {
+  idle:       { r: 0,   g: 200, b: 255 },  // cyan
+  listening:  { r: 255, g: 120, b: 40  },  // orange
+  thinking:   { r: 180, g: 120, b: 255 },  // purple
+  speaking:   { r: 0,   g: 240, b: 255 },  // bright cyan
+  processing: { r: 180, g: 120, b: 255 },  // purple
+};
+
+const STATE_PARAMS = {
+  idle:       { pulseSpeed: 0.015, pulseMin: 0.98,  pulseMax: 1.02,  haloAlpha: 0.25, pulseWaveSpeed: 0, pulseWaveRate: 0, ringSpeed: 0.3 },
+  listening:  { pulseSpeed: 0.04,  pulseMin: 0.96,  pulseMax: 1.06,  haloAlpha: 0.5,  pulseWaveSpeed: 3, pulseWaveRate: 800, ringSpeed: 0.8 },
+  thinking:   { pulseSpeed: 0.03,  pulseMin: 0.97,  pulseMax: 1.05,  haloAlpha: 0.45, pulseWaveSpeed: 2, pulseWaveRate: 1200, ringSpeed: 1.2 },
+  speaking:   { pulseSpeed: 0.06,  pulseMin: 0.94,  pulseMax: 1.10,  haloAlpha: 0.6,  pulseWaveSpeed: 4, pulseWaveRate: 400, ringSpeed: 0.6 },
+  processing: { pulseSpeed: 0.03,  pulseMin: 0.97,  pulseMax: 1.04,  haloAlpha: 0.4,  pulseWaveSpeed: 2, pulseWaveRate: 1000, ringSpeed: 1.5 },
+};
+
+// ── Animation State ──
+let scale = 1.0;
+let targetScale = 1.0;
+let haloAlpha = 0.25;
+let targetHaloAlpha = 0.25;
+let pulsePhase = 0;
+let pulseWaves = []; // { radius, alpha, born }
+let lastPulseTime = 0;
+let ringAngle = 0;
+let time = 0;
+
+const ORB_RADIUS = 100;
+const MAX_PULSE_RADIUS = 220;
+
+function setState(newState) {
+  if (newState === currentState) return;
+  currentState = newState;
+  const c = STATE_COLORS[newState] || STATE_COLORS.idle;
+  targetColor = { ...c };
+  targetHaloAlpha = STATE_PARAMS[newState]?.haloAlpha || 0.25;
+}
+
+function lerpColor(current, target, speed) {
+  return {
+    r: current.r + (target.r - current.r) * speed,
+    g: current.g + (target.g - current.g) * speed,
+    b: current.b + (target.b - current.b) * speed,
+  };
+}
+
+function colorStr(c, a) {
+  return `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${a})`;
+}
+
+// ── Main Animation Loop ──
+function animate() {
+  const now = performance.now();
+  const dt = 1/60;
+  time += dt;
+  
+  const params = STATE_PARAMS[currentState] || STATE_PARAMS.idle;
+  
+  // Lerp color
+  currentColor = lerpColor(currentColor, targetColor, 0.05);
+  haloAlpha += (targetHaloAlpha - haloAlpha) * 0.05;
+  
+  // Breathing/pulse scale
+  pulsePhase += params.pulseSpeed;
+  const breathe = Math.sin(pulsePhase);
+  targetScale = params.pulseMin + (params.pulseMax - params.pulseMin) * (breathe * 0.5 + 0.5);
+  scale += (targetScale - scale) * 0.15;
+  
+  // Spawn pulse waves
+  if (params.pulseWaveRate > 0 && now - lastPulseTime > params.pulseWaveRate) {
+    pulseWaves.push({ radius: ORB_RADIUS * scale, alpha: 0.6, born: now });
+    lastPulseTime = now;
+  }
+  
+  // Update pulse waves
+  for (let i = pulseWaves.length - 1; i >= 0; i--) {
+    const pw = pulseWaves[i];
+    pw.radius += params.pulseWaveSpeed;
+    pw.alpha = Math.max(0, 0.6 * (1 - (pw.radius - ORB_RADIUS) / (MAX_PULSE_RADIUS - ORB_RADIUS)));
+    if (pw.radius > MAX_PULSE_RADIUS || pw.alpha <= 0) {
+      pulseWaves.splice(i, 1);
+    }
+  }
+  
+  // Ring rotation
+  ringAngle += params.ringSpeed * dt;
+  
+  // ── Draw ──
+  ctx.clearRect(0, 0, W, H);
+  
+  // 1. Halo glow (large soft circle behind orb)
+  const haloGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, 200);
+  haloGrad.addColorStop(0, colorStr(currentColor, haloAlpha * 0.6));
+  haloGrad.addColorStop(0.4, colorStr(currentColor, haloAlpha * 0.3));
+  haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = haloGrad;
+  ctx.fillRect(0, 0, W, H);
+  
+  // 2. Orbital rings
+  ctx.save();
+  ctx.translate(CX, CY);
+  for (let i = 0; i < 3; i++) {
+    const r = 130 + i * 25;
+    const a = ringAngle * (i % 2 === 0 ? 1 : -1) * (1 + i * 0.3);
+    ctx.save();
+    ctx.rotate(a);
+    ctx.strokeStyle = colorStr(currentColor, 0.12 - i * 0.03);
+    ctx.lineWidth = 1;
+    ctx.setLineDash(i === 1 ? [4, 8] : i === 2 ? [2, 12] : []);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Dot on ring
+    const dotAngle = a * 2 + i * 2.1;
+    const dx = Math.cos(dotAngle) * r;
+    const dy = Math.sin(dotAngle) * r;
+    ctx.fillStyle = colorStr(currentColor, 0.7);
+    ctx.beginPath();
+    ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  
+  // 3. Pulse waves (radiating rings)
+  for (const pw of pulseWaves) {
+    ctx.strokeStyle = colorStr(currentColor, pw.alpha);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(CX, CY, pw.radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  
+  // 4. Main orb
+  const orbR = ORB_RADIUS * scale;
+  const orbGrad = ctx.createRadialGradient(
+    CX - orbR * 0.2, CY - orbR * 0.2, 0,
+    CX, CY, orbR
+  );
+  orbGrad.addColorStop(0, colorStr(currentColor, 0.35));
+  orbGrad.addColorStop(0.5, colorStr(currentColor, 0.15));
+  orbGrad.addColorStop(0.8, colorStr(currentColor, 0.06));
+  orbGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = orbGrad;
+  ctx.beginPath();
+  ctx.arc(CX, CY, orbR, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Orb edge glow
+  ctx.strokeStyle = colorStr(currentColor, 0.3 + haloAlpha * 0.3);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(CX, CY, orbR, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Inner highlight
+  const innerGrad = ctx.createRadialGradient(
+    CX - orbR * 0.3, CY - orbR * 0.3, 0,
+    CX, CY, orbR * 0.6
+  );
+  innerGrad.addColorStop(0, colorStr(currentColor, 0.15));
+  innerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = innerGrad;
+  ctx.beginPath();
+  ctx.arc(CX, CY, orbR * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+// ═══════════════════════════════════════════════════
+//  WebSocket + UI Logic
+// ═══════════════════════════════════════════════════
+
+let ws = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let isSpeaking = false;
+let pendingAudioBlob = null;
+let currentAudio = null;
+
+const statusEl = document.getElementById('status');
+const chatLog = document.getElementById('chatLog');
+const textInput = document.getElementById('textInput');
+const micBtn = document.getElementById('micBtn');
+
+function connect() {
+  ws = new WebSocket('ws://127.0.0.1:8765');
+  
+  ws.onopen = () => {
+    setStatus('ONLINE — AWAITING COMMAND', 'active');
+    setState('idle');
+  };
+
+  ws.onmessage = async (event) => {
+    if (event.data instanceof Blob) {
+      pendingAudioBlob = event.data;
+      return;
+    }
+    
+    const data = JSON.parse(event.data);
+    
+    switch(data.type) {
+      case 'status':
+        setStatus(data.message, 'active');
+        if (data.message.includes('Processing') || data.message.includes('Command')) {
+          setState('processing');
+        }
+        break;
+        
+      case 'transcription':
+        addChatEntry('YOU', data.text, 'user');
+        setState('thinking');
+        setStatus('THINKING', 'thinking-state');
+        break;
+        
+      case 'response':
+        addChatEntry('HERMES', data.text, 'hermes');
+        setStatus('PREPARING VOICE', 'active');
+        break;
+        
+      case 'tts_start':
+        pendingAudioBlob = null;
+        isSpeaking = true;
+        setState('speaking');
+        setStatus('SPEAKING', 'active');
+        break;
+        
+      case 'tts_end':
+        if (pendingAudioBlob) {
+          await playCompleteAudio(pendingAudioBlob);
+          pendingAudioBlob = null;
+        } else {
+          finishSpeaking();
+        }
+        break;
+    }
+  };
+
+  ws.onerror = () => setStatus('CONNECTION ERROR', '');
+  ws.onclose = () => {
+    setStatus('OFFLINE — RECONNECTING', '');
+    setState('idle');
+    setTimeout(connect, 3000);
+  };
+}
+
+// ── Audio Playback ──
+async function playCompleteAudio(blob) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  
+  const url = URL.createObjectURL(new Blob([blob], { type: 'audio/mp3' }));
+  const audio = new Audio();
+  currentAudio = audio;
+  
+  return new Promise((resolve) => {
+    audio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; finishSpeaking(); resolve(); };
+    audio.onerror = (e) => { console.error('Playback error:', e); URL.revokeObjectURL(url); currentAudio = null; finishSpeaking(); resolve(); };
+    audio.src = url;
+    audio.play().catch(e => { console.error('Play failed:', e); URL.revokeObjectURL(url); currentAudio = null; finishSpeaking(); resolve(); });
+  });
+}
+
+function finishSpeaking() {
+  isSpeaking = false;
+  setState('idle');
+  setStatus('AWAITING COMMAND', 'active');
+  pendingAudioBlob = null;
+}
+
+// ── Microphone ──
+async function toggleMic() {
+  if (isRecording) { stopRecording(); } else { await startRecording(); }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    audioChunks = [];
+    
+    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+    
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const wavBlob = await convertToWav(audioBlob);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'mic_activate' }));
+        ws.send(wavBlob);
+      }
+      stream.getTracks().forEach(t => t.stop());
+      setState('thinking');
+      setStatus('PROCESSING', 'thinking-state');
+    };
+    
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = 'STOP';
+    setState('listening');
+    setStatus('LISTENING', 'listening-state');
+  } catch(e) {
+    console.error('Mic error:', e);
+    setStatus('MICROPHONE ACCESS DENIED', '');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.textContent = 'MIC';
+}
+
+// ── WAV Conversion ──
+async function convertToWav(blob) {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const arrayBuffer = await blob.arrayBuffer();
+  try {
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const pcm = audioBuffer.getChannelData(0);
+    const wavBuffer = new ArrayBuffer(44 + pcm.length * 2);
+    const view = new DataView(wavBuffer);
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + pcm.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, 16000, true);
+    view.setUint32(28, 32000, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, pcm.length * 2, true);
+    let offset = 44;
+    for (let i = 0; i < pcm.length; i++, offset += 2) {
+      let s = Math.max(-1, Math.min(1, pcm[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    audioCtx.close();
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+  } catch(e) { audioCtx.close(); return blob; }
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+}
+
+// ── Text Input ──
+function sendText() {
+  const text = textInput.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  addChatEntry('YOU', text, 'user');
+  ws.send(JSON.stringify({ type: 'text_command', text }));
+  textInput.value = '';
+  setState('thinking');
+  setStatus('THINKING', 'thinking-state');
+}
+
+textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
+
+// ── UI Helpers ──
+function setStatus(text, className) {
+  statusEl.textContent = text;
+  statusEl.className = 'status-text' + (className ? ' ' + className : '');
+}
+
+function addChatEntry(label, text, type) {
+  const entry = document.createElement('div');
+  entry.className = `chat-entry ${type}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'label';
+  labelEl.textContent = label;
+  const textEl = document.createElement('span');
+  textEl.className = 'text';
+  entry.appendChild(labelEl);
+  entry.appendChild(textEl);
+  chatLog.appendChild(entry);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  typeWriter(textEl, text, 0);
+}
+
+function typeWriter(el, text, i) {
+  if (i < text.length) {
+    el.textContent += text.charAt(i);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    setTimeout(() => typeWriter(el, text, i + 1), 12);
+  }
+}
+
+// ── Init ──
+connect();
+</script>
+</body>
+</html>
