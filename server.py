@@ -293,6 +293,83 @@ def run_local_command(cmd, timeout=15):
         return f"Error: {e}"
 
 
+def _process_uploaded_file(filename, content_b64, mime):
+    """Process an uploaded file — extract text from images via OCR, read text files."""
+    import base64
+    try:
+        raw_bytes = base64.b64decode(content_b64)
+    except Exception as e:
+        return f"Error decoding file: {e}"
+    
+    ext = Path(filename).suffix.lower()
+    is_image = ext in ('.png', '.jpg', '.jpeg', '.heic', '.webp', '.gif', '.bmp') or mime.startswith('image/')
+    
+    if is_image:
+        # Save to temp file and run OCR via macOS Vision framework
+        tmp_path = Path(tempfile.mktemp(suffix=ext))
+        tmp_path.write_bytes(raw_bytes)
+        
+        # Convert HEIC to PNG if needed
+        if ext == '.heic':
+            png_path = tmp_path.with_suffix('.png')
+            run_local_command(f'sips -s format png "{tmp_path}" --out "{png_path}"')
+            if png_path.exists():
+                tmp_path.unlink()
+                tmp_path = png_path
+        
+        # Use macOS Vision framework for OCR
+        ocr_result = run_local_command(f'''python3 -c "
+import subprocess, json
+result = subprocess.run(
+    ['shortcuts', 'run', 'OCR Image', '-i', '{tmp_path}'],
+    capture_output=True, text=True, timeout=30
+)
+if result.stdout.strip():
+    print(result.stdout.strip())
+else:
+    # Fallback: use macOS screencapture + vision
+    import Quartz
+    from Foundation import NSURL
+    from Vision import VNRecognizeTextRequest, VNImageRequestHandler
+    url = NSURL.fileURLWithPath_(str('{tmp_path}'))
+    handler = VNImageRequestHandler.alloc().initWithURL_options_(url, None)
+    request = VNRecognizeTextRequest.alloc().init()
+    request.setRecognitionLevel_(1)
+    handler.performRequests_error_([request], None)
+    results = request.results()
+    if results:
+        for obs in results:
+            print(obs.topCandidates_(1)[0].string())
+    else:
+        print('[No text detected in image]')
+"''', timeout=30)
+        
+        # If OCR fails, try simpler approach
+        if not ocr_result or "Error" in ocr_result or "Traceback" in ocr_result:
+            # Use tesseract if available
+            ocr_result = _safe_tool(f'tesseract "{tmp_path}" stdout 2>/dev/null', "tesseract", timeout=15)
+            if "not installed" in ocr_result:
+                # Last resort: describe what we can see from the filename
+                ocr_result = f"[Image uploaded: {filename}. OCR not available. Please install tesseract: brew install tesseract]"
+        
+        try:
+            tmp_path.unlink()
+        except Exception:
+            pass
+        
+        return f"[Image: {filename}]\n{ocr_result}"
+    
+    else:
+        # Text-based file — decode and read
+        try:
+            text = raw_bytes.decode('utf-8', errors='ignore')
+            if len(text) > 3000:
+                text = text[:3000] + "\n... (truncated)"
+            return f"[File: {filename}]\n{text}"
+        except Exception as e:
+            return f"Error reading file: {e}"
+
+
 def _safe_tool(cmd, tool_name="tool", timeout=15):
     """Run a command with graceful error handling for missing tools."""
     try:
@@ -882,6 +959,30 @@ async def handle_client(websocket):
                 elif data.get("type") == "mic_activate":
                     mic_activated = True
 
+                elif data.get("type") == "file_upload":
+                    filename = data.get("name", "unknown")
+                    content_b64 = data.get("content", "")
+                    mime = data.get("mime", "")
+                    print(f"[Hermes] File upload: {filename} ({mime}, {len(content_b64)} chars b64)")
+                    
+                    in_conversation = True
+                    last_interaction = time.time()
+                    
+                    await websocket.send(json.dumps({
+                        "type": "status",
+                        "message": f"Analysing {filename}..."
+                    }))
+                    
+                    # Process the file
+                    loop = asyncio.get_event_loop()
+                    file_analysis = await loop.run_in_executor(
+                        None, _process_uploaded_file, filename, content_b64, mime
+                    )
+                    
+                    # Send to LLM as a command with file context
+                    command = f"I just uploaded a file called '{filename}'. Here is its content:\n\n{file_analysis[:3000]}\n\nPlease analyse this. If there are any dates, meetings, events, deadlines, or appointments mentioned, point them out so I can add them to my calendar. Also summarise the key information."
+                    await respond_to_command(websocket, command)
+                    
                 elif data.get("type") == "clear_history":
                     conversation_history.clear()
                     in_conversation = False

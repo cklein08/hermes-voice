@@ -850,7 +850,7 @@
         <div class="file-drop-icon">⬆</div>
         <div class="file-drop-text">Drop file or click to browse</div>
         <div class="file-drop-result" id="fileDropResult"></div>
-        <input type="file" class="file-drop-input" id="fileInput" accept=".txt,.pdf,.py,.js,.json,.csv,.md">
+        <input type="file" class="file-drop-input" id="fileInput" accept=".txt,.pdf,.py,.js,.json,.csv,.md,.png,.jpg,.jpeg,.heic,.webp,.gif,.bmp">
       </div>
     </div>
   </div>
@@ -1740,7 +1740,7 @@ setInterval(fetchSystem, 5000);
 const fileDropZone = document.getElementById('fileDropZone');
 const fileInput = document.getElementById('fileInput');
 const fileDropResult = document.getElementById('fileDropResult');
-const ALLOWED_EXTS = ['.txt','.pdf','.py','.js','.json','.csv','.md'];
+const ALLOWED_EXTS = ['.txt','.pdf','.py','.js','.json','.csv','.md','.png','.jpg','.jpeg','.heic','.webp','.gif','.bmp'];
 
 fileDropZone.addEventListener('click', () => fileInput.click());
 fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); fileDropZone.classList.add('dragover'); });
