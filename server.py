@@ -180,7 +180,12 @@ IMPORTANT:
 - Be concise (1-3 sentences) for chat responses.
 - Use British English.
 {prefer_tools_line}
-- {_gender_hint} {_name_usage}"""
+- {_gender_hint} {_name_usage}
+- FOLLOW-UPS: The conversation history includes previous tool outputs (marked with [Tool: ...]). 
+  When the user refers to something from a previous result (e.g., "read that one", "the podcast email", "tell me more about the first one"), 
+  look at the previous tool output in the conversation to find the relevant ID, name, or reference.
+  For emails: extract the email ID number from the previous email_list output and use email_read with that ID.
+  For notes: extract the file path from previous noteplan_search output and use noteplan_read."""
 
 
 def build_response_prompt():
@@ -189,6 +194,8 @@ def build_response_prompt():
 Given the tool output below, craft a concise spoken response (1-3 sentences).
 Use British English. Never use asterisk actions. Only spoken words.
 Be helpful and specific — summarise the key information from the tool output.
+When listing emails, mention the subject and sender so the user can ask about a specific one.
+When listing events, mention the time and title.
 {_gender_hint} Don't use their name in every reply — only at start or end of conversation."""
 
 
@@ -606,10 +613,10 @@ async def classify_and_execute(user_message):
     if len(conversation_history) > 20:
         conversation_history = conversation_history[-20:]
 
-    # Step 1: Classify intent
+    # Step 1: Classify intent (include enough history for follow-ups like "read that email")
     classify_messages = [
         {"role": "system", "content": CLASSIFIER_PROMPT},
-    ] + conversation_history[-6:]  # Last 3 exchanges for context
+    ] + conversation_history[-10:]  # Last 5 exchanges — includes tool output for follow-up references
 
     raw = await call_llm(classify_messages, max_tokens=500)
     if not raw:
@@ -651,17 +658,23 @@ async def classify_and_execute(user_message):
     tool_output = await loop.run_in_executor(None, execute_tool, tool, params)
     print(f"[Hermes] Tool output ({tool}): {tool_output[:200]}")
 
+    # Store tool output in conversation history so follow-ups have context
+    # (e.g., user asks "read the podcast one" after listing emails — classifier needs the IDs)
+    tool_context = f"[Tool: {tool}]\n{tool_output[:2000]}"
+    conversation_history.append({"role": "assistant", "content": tool_context})
+
     # Step 3: Format tool output into a spoken response
     format_messages = [
         {"role": "system", "content": RESPONSE_PROMPT},
         {"role": "user", "content": f"User asked: {user_message}\n\nTool used: {tool}\nTool output:\n{tool_output[:1500]}"},
     ]
 
-    reply = await call_llm(format_messages, max_tokens=300)
+    reply = await call_llm(format_messages, max_tokens=250)
     if not reply:
         # Fallback: just return raw output trimmed
         reply = f"Here's what I found: {tool_output[:200]}"
 
+    # Also store the spoken reply so conversation flows naturally
     conversation_history.append({"role": "assistant", "content": reply})
     return reply
 
