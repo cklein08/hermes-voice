@@ -144,7 +144,37 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - **Status text color matches state:** cyan, orange, purple
 - **Name usage fix:** Only use Carolyn's name at start/end of conversation, not every reply
 
-### Status: ✅ v3 Running
+### v4: One-Click Installer + Setup Wizard + Plugin System
+- **install.sh** — one-click installer for non-technical users
+  - Auto-detects OS (macOS, Linux, WSL)
+  - Finds Python 3.11+ (tries 3.13→3.12→3.11→3)
+  - Installs Homebrew if needed on macOS
+  - Installs system deps (portaudio, ffmpeg)
+  - Creates venv + installs all pip packages
+  - Runs setup wizard automatically
+  - Idempotent — safe to run multiple times
+- **setup_wizard.py** — 8-step interactive wizard with ANSI colors + emoji
+  - Name + address preference
+  - API key collection + validation (test API call)
+  - Voice picker with live audio preview (5 British voices)
+  - Optional email/calendar/reminders setup with tool install offers
+  - Preset selection: minimal, personal, adobe-ea, custom
+  - NotePlan path configuration
+  - Generates config.json + .env
+- **server.py refactored** — fully config-driven
+  - Loads config.json at startup
+  - Dynamic CLASSIFIER_PROMPT — only lists enabled tools
+  - Dynamic RESPONSE_PROMPT — uses configured name/gender
+  - Module-gated tool execution
+  - Graceful error handling for missing CLI tools
+  - NotePlan tools: noteplan_search, noteplan_read
+  - Dashboard/briefing now check plugins/ directory
+- **Plugin system** — plugins/dashboard/, plugins/briefing/ directories
+- **config.example.json** — template for manual setup
+- **Personal config gitignored** — API keys and paths stay local
+- **Pushed to GitHub**: https://github.com/cklein08/hermes-voice
+
+### Status: ✅ v4 Running
 - Server starts and serves UI
 - TTS confirmed working with British voice
 - All imports validated
