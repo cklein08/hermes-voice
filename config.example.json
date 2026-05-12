@@ -1,0 +1,42 @@
+{
+  "user_name": "Your Name",
+  "address_style": "first_name",
+  "email": "you@example.com",
+  "work_email": "",
+  "gender": "",
+  "voice": "en-GB-RyanNeural",
+  "whisper_model": "base",
+  "wake_word": "hermes",
+  "hermes_base": "",
+  "preset": "personal",
+  "noteplan_path": "",
+  "modules": {
+    "email": {
+      "enabled": false,
+      "address": "",
+      "provider": "gmail"
+    },
+    "calendar": {
+      "enabled": false
+    },
+    "reminders": {
+      "enabled": false
+    },
+    "web_search": {
+      "enabled": true
+    },
+    "terminal": {
+      "enabled": true
+    },
+    "dashboard": {
+      "enabled": false
+    },
+    "briefing": {
+      "enabled": false
+    },
+    "noteplan": {
+      "enabled": false,
+      "path": ""
+    }
+  }
+}
