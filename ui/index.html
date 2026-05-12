@@ -362,6 +362,10 @@
   }
   .day-timeline {
     position: relative;
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cyan-dim) transparent;
   }
   .timeline-hour {
     display: flex;
@@ -1418,8 +1422,8 @@ function renderDayTimeline(events) {
     });
   }
   
-  // Build timeline hours 8-18
-  for (let h = 8; h <= 18; h++) {
+  // Build timeline hours 7AM-8PM
+  for (let h = 7; h <= 20; h++) {
     const row = document.createElement('div');
     row.className = 'timeline-hour';
     
