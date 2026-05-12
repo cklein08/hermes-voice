@@ -563,6 +563,9 @@ def execute_tool(tool, params):
         return f"Unknown tool: {tool}"
 
 
+# ── Token Tracking ───────────────────────────────────────────
+token_usage = {"input": 0, "output": 0}
+
 # ── LLM Calls ──────────────────────────────────────────────────
 
 async def call_llm(messages, max_tokens=500):
@@ -585,6 +588,10 @@ async def call_llm(messages, max_tokens=500):
             },
         ) as resp:
             data = await resp.json()
+            # Track token usage
+            usage = data.get("usage", {})
+            token_usage["input"] += usage.get("prompt_tokens", 0)
+            token_usage["output"] += usage.get("completion_tokens", 0)
             return data["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"[Hermes] LLM error: {e}")
@@ -789,11 +796,230 @@ async def handle_client(websocket):
 
 # ── HTTP Server ─────────────────────────────────────────────────
 
+# ── API Cache ────────────────────────────────────────────────────
+_api_cache = {}  # {endpoint: (timestamp, data)}
+_API_CACHE_TTL = 60  # seconds
+
+
 class UIHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(Path(__file__).parent / "ui"), **kwargs)
+
     def log_message(self, format, *args):
         pass
+
+    # ── Helper methods ───────────────────────────────────────────
+
+    def _send_json(self, data, status=200):
+        """Send a JSON response."""
+        body = json.dumps(data, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _get_cached(self, key):
+        """Return cached data if fresh, else None."""
+        if key in _api_cache:
+            ts, data = _api_cache[key]
+            if time.time() - ts < _API_CACHE_TTL:
+                return data
+        return None
+
+    def _set_cached(self, key, data):
+        """Store data in cache."""
+        _api_cache[key] = (time.time(), data)
+
+    # ── Route dispatch ───────────────────────────────────────────
+
+    def do_GET(self):
+        path = self.path.split("?")[0]
+        if path == "/api/calendar":
+            self._handle_calendar()
+        elif path == "/api/clients":
+            self._handle_clients()
+        elif path == "/api/tasks":
+            self._handle_tasks()
+        elif path == "/api/tokens":
+            self._handle_tokens()
+        elif path == "/api/briefing":
+            self._handle_briefing()
+        elif path.startswith("/api/"):
+            self._send_json({"error": "Unknown API endpoint"}, 404)
+        else:
+            super().do_GET()
+
+    # ── /api/calendar ────────────────────────────────────────────
+
+    def _handle_calendar(self):
+        cached = self._get_cached("calendar")
+        if cached is not None:
+            return self._send_json(cached)
+        try:
+            from datetime import date, timedelta
+            today = date.today().isoformat()
+            tomorrow = (date.today() + timedelta(days=1)).isoformat()
+            result = subprocess.run(
+                ["acal", "events", "list", "--from", today, "--to", tomorrow],
+                capture_output=True, text=True, timeout=15
+            )
+            raw = json.loads(result.stdout) if result.stdout.strip() else {}
+            # acal returns {"ok": true, "data": [...]}
+            event_list = raw.get("data", raw) if isinstance(raw, dict) else raw
+            events = []
+            for ev in event_list:
+                events.append({
+                    "title": ev.get("title", ""),
+                    "start": ev.get("start", ev.get("startDate", "")),
+                    "end": ev.get("end", ev.get("endDate", "")),
+                    "location": ev.get("location", ""),
+                    "allDay": ev.get("allDay", ev.get("isAllDay", False)),
+                })
+            events.sort(key=lambda e: e.get("start", ""))
+            self._set_cached("calendar", events)
+            self._send_json(events)
+        except Exception as e:
+            print(f"[Hermes] /api/calendar error: {e}")
+            self._send_json([])
+
+    # ── /api/clients ─────────────────────────────────────────────
+
+    def _handle_clients(self):
+        cached = self._get_cached("clients")
+        if cached is not None:
+            return self._send_json(cached)
+        try:
+            fpath = os.path.join(HERMES_BASE, "dashboard", "dashboard_data.json")
+            with open(fpath) as f:
+                data = json.load(f)
+            clients_raw = data.get("clients", [])
+            clients = []
+            for c in clients_raw:
+                clients.append({
+                    "client": c.get("client", ""),
+                    "rag": c.get("rag", ""),
+                    "status": c.get("status", ""),
+                    "progress": c.get("progress", 0),
+                    "open_tasks": c.get("open_tasks", 0),
+                    "overdue_tasks": c.get("overdue_tasks", 0),
+                    "arr": c.get("arr", ""),
+                    "close_date": c.get("close_date", ""),
+                })
+            self._set_cached("clients", clients)
+            self._send_json(clients)
+        except Exception as e:
+            print(f"[Hermes] /api/clients error: {e}")
+            self._send_json([])
+
+    # ── /api/tasks ───────────────────────────────────────────────
+
+    def _handle_tasks(self):
+        cached = self._get_cached("tasks")
+        if cached is not None:
+            return self._send_json(cached)
+        try:
+            all_tasks = []
+            for list_name in ["Work items", "Tasks", "Personal", "Family"]:
+                try:
+                    result = subprocess.run(
+                        ["remindctl", "list", list_name],
+                        capture_output=True, text=True, timeout=15
+                    )
+                    if result.stdout.strip():
+                        all_tasks.extend(
+                            self._parse_reminders(result.stdout, list_name)
+                        )
+                except Exception:
+                    pass
+            # Filter incomplete, sort by due date
+            incomplete = [t for t in all_tasks if not t.get("completed", False)]
+            incomplete.sort(key=lambda t: t.get("due_date", "") or "9999-12-31")
+            self._set_cached("tasks", incomplete)
+            self._send_json(incomplete)
+        except Exception as e:
+            print(f"[Hermes] /api/tasks error: {e}")
+            self._send_json([])
+
+    def _parse_reminders(self, text, list_name):
+        """Parse remindctl text output into task dicts.
+        Format: [N] [x]/[ ] Title [ListName] — DateString [priority=level]
+        """
+        tasks = []
+        for line in text.strip().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # Match: [N] [x] or [ ] followed by title
+            m = re.match(r'\[(\d+)\]\s+\[([ xX])\]\s+(.+)', line)
+            if not m:
+                continue
+            completed = m.group(2).lower() == 'x'
+            rest = m.group(3)
+            # Extract priority if present
+            priority = 0
+            pri_match = re.search(r'priority=(high|medium|low)', rest)
+            if pri_match:
+                priority = {"high": 3, "medium": 2, "low": 1}.get(pri_match.group(1), 0)
+                rest = rest[:pri_match.start()].strip()
+            # Split on " — " to get title and date
+            parts = rest.split(' — ', 1)
+            title_part = parts[0].strip()
+            due_str = parts[1].strip() if len(parts) > 1 else ""
+            # Remove [ListName] from title
+            title_part = re.sub(r'\s*\[.*?\]\s*$', '', title_part)
+            # Parse date string like "May 13, 2026 at 8:00 AM" or "no due date"
+            due_date = ""
+            if due_str and due_str != "no due date":
+                try:
+                    from datetime import datetime
+                    # Handle unicode narrow no-break space
+                    due_str_clean = due_str.replace('\u202f', ' ').replace('\xa0', ' ')
+                    dt = datetime.strptime(due_str_clean, "%b %d, %Y at %I:%M %p")
+                    due_date = dt.strftime("%Y-%m-%d %H:%M")
+                except (ValueError, Exception):
+                    due_date = due_str
+            title = title_part.strip(" \t-|")
+            if title:
+                tasks.append({
+                    "title": title,
+                    "due_date": due_date,
+                    "completed": completed,
+                    "list": list_name,
+                    "priority": priority,
+                })
+        return tasks
+
+    # ── /api/tokens ──────────────────────────────────────────────
+
+    def _handle_tokens(self):
+        limit = 1_000_000
+        used = token_usage.get("input", 0) + token_usage.get("output", 0)
+        self._send_json({
+            "used": used,
+            "input_tokens": token_usage.get("input", 0),
+            "output_tokens": token_usage.get("output", 0),
+            "limit": limit,
+            "percentage": round((used / limit) * 100, 2) if limit else 0,
+        })
+
+    # ── /api/briefing ────────────────────────────────────────────
+
+    def _handle_briefing(self):
+        cached = self._get_cached("briefing")
+        if cached is not None:
+            return self._send_json(cached)
+        try:
+            fpath = os.path.join(HERMES_BASE, "daily-briefing", "briefing_data.json")
+            with open(fpath) as f:
+                data = json.load(f)
+            sections = data.get("sections", data)
+            self._set_cached("briefing", sections)
+            self._send_json(sections)
+        except Exception as e:
+            print(f"[Hermes] /api/briefing error: {e}")
+            self._send_json({})
 
 def run_http_server():
     server = HTTPServer((HOST, HTTP_PORT), UIHandler)

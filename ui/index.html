@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HERMES</title>
+<title>HERMES Command Center</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
@@ -14,10 +14,14 @@
     --cyan-dim: #00f0ff33;
     --cyan-glow: #00f0ff80;
     --dark-bg: #060610;
-    --panel-bg: #0d0d15;
+    --panel-bg: #0a0a18;
+    --panel-border: rgba(0, 240, 255, 0.08);
     --text: #c0e8ff;
     --orange: #ff6b35;
     --purple: #b478ff;
+    --red: #ff4444;
+    --green: #44ff88;
+    --yellow: #ffcc44;
   }
 
   body {
@@ -28,8 +32,6 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
   }
 
   /* ── Scan Lines ── */
@@ -46,50 +48,129 @@
     z-index: 1000;
   }
 
+  /* ── Token Bar (top) ── */
+  .token-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 240, 255, 0.06);
+    position: relative;
+    flex-shrink: 0;
+    z-index: 20;
+  }
+  .token-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--cyan-glow));
+    width: 0%;
+    transition: width 1s ease;
+    box-shadow: 0 0 8px var(--cyan-dim);
+  }
+  .token-bar:hover .token-bar-label {
+    opacity: 1;
+  }
+  .token-bar-label {
+    position: absolute;
+    right: 12px;
+    top: 6px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    color: var(--cyan);
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    text-shadow: 0 0 6px var(--cyan-dim);
+  }
+
+  /* ── Main Layout ── */
+  .dashboard {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Side Panels ── */
+  .panel-left, .panel-right {
+    width: 280px;
+    flex-shrink: 0;
+    padding: 16px 12px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cyan-dim) transparent;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+  }
+  .panel-right {
+    border-right: none;
+    border-left: 1px solid var(--panel-border);
+  }
+
+  .panel-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #4a8a9a;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  /* ── Center Column ── */
+  .center-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
   /* ── Header ── */
   .header {
-    position: absolute;
-    top: 20px;
-    left: 0; right: 0;
     text-align: center;
+    padding: 14px 0 4px;
+    flex-shrink: 0;
     z-index: 10;
   }
   .header h1 {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.6rem;
+    font-size: 1.4rem;
     font-weight: 900;
     letter-spacing: 12px;
     color: var(--cyan);
     text-shadow: 0 0 30px var(--cyan-glow), 0 0 60px var(--cyan-dim);
   }
   .header .subtitle {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     letter-spacing: 6px;
     color: #4a8a9a;
-    margin-top: 4px;
+    margin-top: 2px;
     text-transform: uppercase;
   }
 
-  /* ── Canvas (orb + pulses drawn here) ── */
+  /* ── Canvas (orb) ── */
+  .orb-container {
+    position: relative;
+    width: 350px;
+    height: 350px;
+    flex-shrink: 0;
+  }
   #orbCanvas {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -55%);
-    z-index: 1;
+    display: block;
   }
 
   /* ── Status ── */
   .status {
-    position: absolute;
-    top: calc(50% + 180px);
     text-align: center;
     z-index: 10;
-    width: 100%;
+    flex-shrink: 0;
+    margin-top: -10px;
+    margin-bottom: 4px;
   }
   .status-text {
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     letter-spacing: 4px;
     color: #4a8a9a;
     text-transform: uppercase;
@@ -101,28 +182,25 @@
 
   /* ── Chat Log ── */
   .chat-log {
-    position: absolute;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(600px, 90vw);
-    max-height: 200px;
+    flex: 1;
+    width: 100%;
+    max-width: 600px;
     overflow-y: auto;
-    padding: 12px;
+    padding: 8px 16px;
     z-index: 10;
     scrollbar-width: thin;
     scrollbar-color: var(--cyan-dim) transparent;
   }
   .chat-entry {
     margin-bottom: 10px;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     line-height: 1.5;
     opacity: 0;
     animation: fade-in 0.3s forwards;
   }
   .chat-entry .label {
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     letter-spacing: 2px;
     display: block;
     margin-bottom: 2px;
@@ -139,14 +217,13 @@
 
   /* ── Input Bar ── */
   .input-bar {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(600px, 90vw);
+    width: 100%;
+    max-width: 600px;
     display: flex;
     gap: 8px;
+    padding: 10px 16px;
     z-index: 10;
+    flex-shrink: 0;
   }
   .input-bar input {
     flex: 1;
@@ -174,7 +251,7 @@
     color: var(--cyan);
     cursor: pointer;
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     letter-spacing: 2px;
     transition: all 0.2s;
     white-space: nowrap;
@@ -188,6 +265,199 @@
     background: rgba(255, 107, 53, 0.2);
     border-color: var(--orange);
     color: var(--orange);
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  LEFT PANEL — Calendar & Day View     */
+  /* ══════════════════════════════════════ */
+
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .cal-nav-btn {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  .cal-nav-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    border-color: var(--cyan);
+  }
+  .cal-month-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    margin-bottom: 16px;
+  }
+  .cal-day-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.5rem;
+    letter-spacing: 1px;
+    color: #4a8a9a;
+    text-align: center;
+    padding: 4px 0;
+  }
+  .cal-day {
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 4px 2px;
+    border-radius: 4px;
+    color: #6a8a9a;
+    cursor: default;
+  }
+  .cal-day.current-month { color: var(--text); }
+  .cal-day.today {
+    background: rgba(0, 240, 255, 0.15);
+    color: var(--cyan);
+    font-weight: 700;
+    border: 1px solid var(--cyan-dim);
+  }
+  .cal-day.has-event {
+    position: relative;
+  }
+  .cal-day.has-event::after {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 4px;
+    background: var(--cyan);
+    border-radius: 50%;
+    margin: 1px auto 0;
+  }
+
+  /* Day View / Timeline */
+  .day-view-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    letter-spacing: 2px;
+    color: #4a8a9a;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .day-timeline {
+    position: relative;
+  }
+  .timeline-hour {
+    display: flex;
+    align-items: flex-start;
+    min-height: 32px;
+    border-top: 1px solid rgba(0, 240, 255, 0.04);
+  }
+  .timeline-hour-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.45rem;
+    color: #3a5a6a;
+    width: 36px;
+    flex-shrink: 0;
+    padding-top: 2px;
+    letter-spacing: 1px;
+  }
+  .timeline-events {
+    flex: 1;
+    padding: 2px 0;
+  }
+  .timeline-event {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+    border-left: 3px solid var(--cyan);
+    background: rgba(0, 240, 255, 0.06);
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .timeline-event.meeting {
+    border-left-color: var(--orange);
+    background: rgba(255, 107, 53, 0.06);
+  }
+  .timeline-event-time {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.45rem;
+    color: #4a8a9a;
+    letter-spacing: 1px;
+  }
+  .timeline-event-title {
+    font-size: 0.7rem;
+    color: var(--text);
+  }
+
+  /* ══════════════════════════════════════ */
+  /*  RIGHT PANEL — Tasks & Clients        */
+  /* ══════════════════════════════════════ */
+
+  .task-list, .client-list {
+    list-style: none;
+  }
+  .task-item {
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.04);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .task-title {
+    font-size: 0.8rem;
+    color: var(--text);
+    flex: 1;
+    line-height: 1.3;
+  }
+  .task-date {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.5rem;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    padding-top: 2px;
+  }
+  .task-date.overdue { color: var(--orange); }
+  .task-date.upcoming { color: var(--cyan); }
+  .task-date.far { color: #4a8a9a; }
+
+  .client-section {
+    margin-top: 20px;
+  }
+  .client-item {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.04);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .client-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .client-dot.red { background: var(--red); box-shadow: 0 0 6px rgba(255,68,68,0.4); }
+  .client-dot.yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(255,204,68,0.4); }
+  .client-dot.green { background: var(--green); box-shadow: 0 0 6px rgba(68,255,136,0.4); }
+  .client-dot.orange { background: var(--orange); box-shadow: 0 0 6px rgba(255,107,53,0.4); }
+  .client-name {
+    font-size: 0.8rem;
+    color: var(--text);
+    flex: 1;
+  }
+  .client-status {
+    font-size: 0.65rem;
+    color: #4a8a9a;
   }
 
   /* ── Corner Decorations ── */
@@ -205,6 +475,14 @@
   .corner-br { bottom: 10px; right: 10px; }
   .corner-br::before { width: 30px; height: 1px; bottom: 0; right: 0; }
   .corner-br::after { width: 1px; height: 30px; bottom: 0; right: 0; }
+
+  /* ── Empty state ── */
+  .empty-msg {
+    font-size: 0.7rem;
+    color: #3a5a6a;
+    font-style: italic;
+    padding: 8px 0;
+  }
 </style>
 </head>
 <body>
@@ -214,23 +492,66 @@
 <div class="corner corner-bl"></div>
 <div class="corner corner-br"></div>
 
-<div class="header">
-  <h1>HERMES</h1>
-  <div class="subtitle">Voice Intelligence System</div>
+<!-- Token Bar -->
+<div class="token-bar">
+  <div class="token-bar-fill" id="tokenBarFill"></div>
+  <div class="token-bar-label" id="tokenBarLabel">0%</div>
 </div>
 
-<canvas id="orbCanvas" width="500" height="500"></canvas>
+<!-- Main Dashboard -->
+<div class="dashboard">
 
-<div class="status">
-  <div class="status-text" id="status">INITIALISING</div>
-</div>
+  <!-- LEFT PANEL: Calendar + Day View -->
+  <div class="panel-left">
+    <div class="panel-header">CALENDAR</div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="calPrev">&lt;</button>
+      <span class="cal-month-label" id="calMonthLabel"></span>
+      <button class="cal-nav-btn" id="calNext">&gt;</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="day-view-header">TODAY'S SCHEDULE</div>
+    <div class="day-timeline" id="dayTimeline"></div>
+  </div>
 
-<div class="chat-log" id="chatLog"></div>
+  <!-- CENTER: Orb + Chat -->
+  <div class="center-column">
+    <div class="header">
+      <h1>HERMES</h1>
+      <div class="subtitle">Voice Intelligence System</div>
+    </div>
 
-<div class="input-bar">
-  <input type="text" id="textInput" placeholder="Type a command or say 'Hermes'..." autocomplete="off" />
-  <button class="btn" id="micBtn" onclick="toggleMic()">MIC</button>
-  <button class="btn" id="sendBtn" onclick="sendText()">SEND</button>
+    <div class="orb-container">
+      <canvas id="orbCanvas" width="350" height="350"></canvas>
+    </div>
+
+    <div class="status">
+      <div class="status-text" id="status">INITIALISING</div>
+    </div>
+
+    <div class="chat-log" id="chatLog"></div>
+
+    <div class="input-bar">
+      <input type="text" id="textInput" placeholder="Type a command or say 'Hermes'..." autocomplete="off" />
+      <button class="btn" id="micBtn" onclick="toggleMic()">MIC</button>
+      <button class="btn" id="sendBtn" onclick="sendText()">SEND</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: Tasks + Clients -->
+  <div class="panel-right">
+    <div class="panel-header">TASKS</div>
+    <ul class="task-list" id="taskList">
+      <li class="empty-msg">Loading tasks...</li>
+    </ul>
+    <div class="client-section">
+      <div class="panel-header">CLIENTS</div>
+      <ul class="client-list" id="clientList">
+        <li class="empty-msg">Loading clients...</li>
+      </ul>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -278,8 +599,8 @@ let lastPulseTime = 0;
 let ringAngle = 0;
 let time = 0;
 
-const ORB_RADIUS = 100;
-const MAX_PULSE_RADIUS = 220;
+const ORB_RADIUS = 70;
+const MAX_PULSE_RADIUS = 155;
 
 function setState(newState) {
   if (newState === currentState) return;
@@ -342,7 +663,7 @@ function animate() {
   ctx.clearRect(0, 0, W, H);
   
   // 1. Halo glow (large soft circle behind orb)
-  const haloGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, 200);
+  const haloGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, 150);
   haloGrad.addColorStop(0, colorStr(currentColor, haloAlpha * 0.6));
   haloGrad.addColorStop(0.4, colorStr(currentColor, haloAlpha * 0.3));
   haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -353,7 +674,7 @@ function animate() {
   ctx.save();
   ctx.translate(CX, CY);
   for (let i = 0; i < 3; i++) {
-    const r = 130 + i * 25;
+    const r = 92 + i * 18;
     const a = ringAngle * (i % 2 === 0 ? 1 : -1) * (1 + i * 0.3);
     ctx.save();
     ctx.rotate(a);
@@ -648,7 +969,312 @@ function typeWriter(el, text, i) {
   }
 }
 
-// ── Init ──
+// ═══════════════════════════════════════════════════
+//  Dashboard Data Panels
+// ═══════════════════════════════════════════════════
+
+// ── Calendar State ──
+let calYear, calMonth;
+let calendarEvents = [];
+
+(function initCalendar() {
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+  document.getElementById('calPrev').addEventListener('click', () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
+  document.getElementById('calNext').addEventListener('click', () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); });
+  renderCalendar();
+})();
+
+function renderCalendar() {
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  document.getElementById('calMonthLabel').textContent = months[calMonth] + ' ' + calYear;
+  
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  
+  const days = ['SU','MO','TU','WE','TH','FR','SA'];
+  days.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-day-header';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+  
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today = new Date();
+  
+  // Days from previous month
+  const prevDays = new Date(calYear, calMonth, 0).getDate();
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    el.textContent = prevDays - i;
+    grid.appendChild(el);
+  }
+  
+  // Event dates for this month
+  const eventDates = new Set();
+  calendarEvents.forEach(ev => {
+    const d = new Date(ev.start || ev.date);
+    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      eventDates.add(d.getDate());
+    }
+  });
+  
+  // Current month days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day current-month';
+    if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) {
+      el.classList.add('today');
+    }
+    if (eventDates.has(d)) {
+      el.classList.add('has-event');
+    }
+    el.textContent = d;
+    grid.appendChild(el);
+  }
+  
+  // Fill remaining
+  const totalCells = firstDay + daysInMonth;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    el.textContent = i;
+    grid.appendChild(el);
+  }
+}
+
+function renderDayTimeline(events) {
+  const timeline = document.getElementById('dayTimeline');
+  timeline.innerHTML = '';
+  
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  
+  // Filter to today's events
+  const todayEvents = events.filter(ev => {
+    const evDate = (ev.start || ev.date || '').slice(0, 10);
+    return evDate === todayStr;
+  });
+  
+  // Build timeline hours 8-18
+  for (let h = 8; h <= 18; h++) {
+    const row = document.createElement('div');
+    row.className = 'timeline-hour';
+    
+    const label = document.createElement('div');
+    label.className = 'timeline-hour-label';
+    label.textContent = (h <= 12 ? h : h - 12) + (h < 12 ? 'AM' : 'PM');
+    row.appendChild(label);
+    
+    const evContainer = document.createElement('div');
+    evContainer.className = 'timeline-events';
+    
+    // Find events for this hour
+    todayEvents.forEach(ev => {
+      const startTime = ev.start || ev.date || '';
+      let evHour = -1;
+      // Try to parse hour from ISO datetime or time string
+      if (startTime.includes('T')) {
+        evHour = parseInt(startTime.split('T')[1].split(':')[0]);
+      } else if (ev.time) {
+        evHour = parseInt(ev.time.split(':')[0]);
+      }
+      if (evHour === h) {
+        const block = document.createElement('div');
+        const title = ev.title || ev.summary || 'Event';
+        const isMeeting = title.toLowerCase().includes('speaking') || title.toLowerCase().includes('meeting') || title.toLowerCase().includes('call');
+        block.className = 'timeline-event' + (isMeeting ? ' meeting' : '');
+        
+        const timeEl = document.createElement('div');
+        timeEl.className = 'timeline-event-time';
+        const startH = evHour;
+        const startM = startTime.includes('T') ? startTime.split('T')[1].split(':')[1] : '00';
+        timeEl.textContent = (startH <= 12 ? startH : startH - 12) + ':' + (startM || '00') + (startH < 12 ? ' AM' : ' PM');
+        
+        const titleEl = document.createElement('div');
+        titleEl.className = 'timeline-event-title';
+        titleEl.textContent = title;
+        
+        block.appendChild(timeEl);
+        block.appendChild(titleEl);
+        evContainer.appendChild(block);
+      }
+    });
+    
+    row.appendChild(evContainer);
+    timeline.appendChild(row);
+  }
+}
+
+// ── Tasks Panel ──
+function renderTasks(tasks) {
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  
+  if (!tasks || tasks.length === 0) {
+    list.innerHTML = '<li class="empty-msg">No pending tasks</li>';
+    return;
+  }
+  
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  
+  tasks.forEach(task => {
+    const li = document.createElement('li');
+    li.className = 'task-item';
+    
+    const titleEl = document.createElement('span');
+    titleEl.className = 'task-title';
+    titleEl.textContent = task.title || task.name || 'Untitled';
+    
+    const dateEl = document.createElement('span');
+    dateEl.className = 'task-date';
+    if (task.due || task.due_date) {
+      const due = new Date(task.due || task.due_date);
+      due.setHours(0,0,0,0);
+      const diff = (due - now) / (1000 * 60 * 60 * 24);
+      if (diff < 0) {
+        dateEl.classList.add('overdue');
+      } else if (diff <= 7) {
+        dateEl.classList.add('upcoming');
+      } else {
+        dateEl.classList.add('far');
+      }
+      dateEl.textContent = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    
+    li.appendChild(titleEl);
+    li.appendChild(dateEl);
+    list.appendChild(li);
+  });
+}
+
+// ── Clients Panel ──
+function renderClients(clients) {
+  const list = document.getElementById('clientList');
+  list.innerHTML = '';
+  
+  if (!clients || clients.length === 0) {
+    list.innerHTML = '<li class="empty-msg">No clients loaded</li>';
+    return;
+  }
+  
+  clients.forEach(client => {
+    const li = document.createElement('li');
+    li.className = 'client-item';
+    
+    const dot = document.createElement('span');
+    dot.className = 'client-dot';
+    const rag = (client.rag || client.status || 'green').toLowerCase();
+    if (rag === 'red') dot.classList.add('red');
+    else if (rag === 'amber' || rag === 'yellow' || rag === 'orange') dot.classList.add('orange');
+    else dot.classList.add('green');
+    
+    const name = document.createElement('span');
+    name.className = 'client-name';
+    name.textContent = client.name || client.client || 'Unknown';
+    
+    const status = document.createElement('span');
+    status.className = 'client-status';
+    status.textContent = client.status_text || client.rag || '';
+    
+    li.appendChild(dot);
+    li.appendChild(name);
+    li.appendChild(status);
+    list.appendChild(li);
+  });
+}
+
+// ── Token Bar ──
+function updateTokenBar(data) {
+  const fill = document.getElementById('tokenBarFill');
+  const label = document.getElementById('tokenBarLabel');
+  const pct = data.percentage || data.percent || 0;
+  fill.style.width = pct + '%';
+  label.textContent = Math.round(pct) + '% TOKENS USED';
+  
+  // Change color when high usage
+  if (pct > 90) {
+    fill.style.background = 'linear-gradient(90deg, var(--orange), var(--red))';
+  } else if (pct > 75) {
+    fill.style.background = 'linear-gradient(90deg, var(--cyan), var(--orange))';
+  } else {
+    fill.style.background = 'linear-gradient(90deg, var(--cyan), var(--cyan-glow))';
+  }
+}
+
+// ── Data Fetching ──
+async function fetchCalendar() {
+  try {
+    const res = await fetch('/api/calendar');
+    if (res.ok) {
+      const data = await res.json();
+      calendarEvents = data.events || data || [];
+      renderCalendar();
+      renderDayTimeline(calendarEvents);
+    }
+  } catch(e) {
+    console.log('Calendar fetch skipped:', e.message);
+    renderDayTimeline([]);
+  }
+}
+
+async function fetchTasks() {
+  try {
+    const res = await fetch('/api/tasks');
+    if (res.ok) {
+      const data = await res.json();
+      renderTasks(data.tasks || data || []);
+    }
+  } catch(e) {
+    console.log('Tasks fetch skipped:', e.message);
+    renderTasks([]);
+  }
+}
+
+async function fetchClients() {
+  try {
+    const res = await fetch('/api/clients');
+    if (res.ok) {
+      const data = await res.json();
+      renderClients(data.clients || data || []);
+    }
+  } catch(e) {
+    console.log('Clients fetch skipped:', e.message);
+    renderClients([]);
+  }
+}
+
+async function fetchTokens() {
+  try {
+    const res = await fetch('/api/tokens');
+    if (res.ok) {
+      const data = await res.json();
+      updateTokenBar(data);
+    }
+  } catch(e) {
+    console.log('Tokens fetch skipped:', e.message);
+  }
+}
+
+// ── Init Data ──
+fetchCalendar();
+fetchTasks();
+fetchClients();
+fetchTokens();
+
+// ── Refresh Intervals ──
+setInterval(fetchCalendar, 5 * 60 * 1000);
+setInterval(fetchTasks, 5 * 60 * 1000);
+setInterval(fetchClients, 5 * 60 * 1000);
+setInterval(fetchTokens, 30 * 1000);
+
+// ── Init WebSocket ──
 connect();
 </script>
 </body>
