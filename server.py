@@ -93,6 +93,7 @@ def _build_tool_list():
 
     if ENABLED_MODULES.get("web_search", {}).get("enabled", False):
         tools.append('- "web_search": Search the web. Params: {"query": "search terms"}')
+        tools.append('- "web_extract": Fetch and read a specific web page URL. Params: {"url": "https://..."}')
 
     if ENABLED_MODULES.get("terminal", {}).get("enabled", False):
         tools.append('- "terminal": Run a macOS shell command. Params: {"command": "..."}')
@@ -107,7 +108,7 @@ def _build_tool_list():
 
     if ENABLED_MODULES.get("noteplan", {}).get("enabled", False):
         tools.append('- "noteplan_search": Search NotePlan notes by keyword. Params: {"query": "search terms"}')
-        tools.append('- "noteplan_read": Read a specific NotePlan note. Params: {"file": "relative/path/to/note.md"}')
+        tools.append('- "noteplan_read": Read a specific NotePlan note by file path or noteplan:// URL. Params: {"file": "Work/Note Name.txt"} — extract the filename from noteplan:// URLs')
         tools.append('- "noteplan_write": Create a new note in the Work folder. Params: {"filename": "Note Title.txt", "content": "note content here"}')
         tools.append('- "noteplan_append": Add content to an existing note. Params: {"filename": "Existing Note.txt", "content": "content to append"}')
 
@@ -189,7 +190,11 @@ IMPORTANT:
   When the user refers to something from a previous result (e.g., "read that one", "the podcast email", "tell me more about the first one"), 
   look at the previous tool output in the conversation to find the relevant ID, name, or reference.
   For emails: extract the email ID number from the previous email_list output and use email_read with that ID.
-  For notes: extract the file path from previous noteplan_search output and use noteplan_read."""
+  For notes: extract the file path from previous noteplan_search output and use noteplan_read.
+- NOTEPLAN URLs: When user pastes a noteplan:// URL, use noteplan_read with the full URL as the "file" param. The system will extract the filename automatically.
+- WEB URLs: When user pastes or mentions a specific URL (https://...), use web_extract to fetch and read it. Use web_search for general queries.
+- MULTI-STEP: When the user asks you to combine information (e.g., "read this note and add it to a dossier"), do the FIRST step. The user will confirm before you do the next step. Don't say you can't — just do the first part.
+- CONTEXT: Always check conversation history. If the user says "that", "it", "the note", "those details" — they're referring to something from a previous message. Find it in history and use it."""
 
 
 def build_response_prompt():
@@ -554,7 +559,47 @@ def execute_tool(tool, params):
         if not ENABLED_MODULES.get("web_search", {}).get("enabled"):
             return "Web search module is not enabled."
         query = params.get("query", "")
-        return run_local_command(f'curl -s "https://html.duckduckgo.com/html/?q={query}" | grep -oP \'(?<=class="result__a" href=").*?(?=")\' | head -5 2>/dev/null || echo "Search completed for: {query}"')
+        if not query:
+            return "Missing search query."
+        # Use ddgr if available, otherwise use Python + DuckDuckGo lite
+        result = _safe_tool(f'ddgr --json -n 5 {json.dumps(query)} 2>/dev/null', "ddgr", timeout=15)
+        if "not installed" in result or "not found" in result.lower() or not result.strip():
+            # Fallback: use Python urllib to fetch DuckDuckGo lite
+            result = run_local_command(
+                f'''python3 -c "
+import urllib.request, urllib.parse, re, html
+q = urllib.parse.quote({json.dumps(query)})
+url = 'https://lite.duckduckgo.com/lite/?q=' + q
+req = urllib.request.Request(url, headers={{'User-Agent': 'Mozilla/5.0'}})
+data = urllib.request.urlopen(req, timeout=10).read().decode()
+results = re.findall(r'<a[^>]+class=\"result-link\"[^>]*href=\"([^\"]+)\"[^>]*>([^<]+)', data)
+if not results:
+    results = re.findall(r'<a[^>]+href=\"(https?://[^\"]+)\"[^>]*>\\s*<b>([^<]*)</b>', data)
+for url, title in results[:5]:
+    print(f'• {{html.unescape(title.strip())}}: {{url}}')
+if not results:
+    print('No results found.')
+"''', timeout=15)
+        return result
+    
+    # ── Web extract (fetch a specific URL) ──
+    elif tool == "web_extract":
+        url = params.get("url", "")
+        if not url:
+            return "Missing URL to extract."
+        # Use curl to fetch page content, strip HTML
+        result = run_local_command(
+            f'''python3 -c "
+import urllib.request, re, html
+req = urllib.request.Request({json.dumps(url)}, headers={{'User-Agent': 'Mozilla/5.0'}})
+data = urllib.request.urlopen(req, timeout=15).read().decode(errors='ignore')
+text = re.sub(r'<script[^>]*>.*?</script>', '', data, flags=re.DOTALL)
+text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+text = re.sub(r'<[^>]+>', ' ', text)
+text = re.sub(r'\\s+', ' ', text).strip()
+print(text[:3000])
+"''', timeout=20)
+        return result
 
     # ── Terminal ──
     elif tool == "terminal":
@@ -606,6 +651,18 @@ def execute_tool(tool, params):
         file_path = params.get("file", "")
         if not file_path:
             return "Missing file path."
+        # Handle noteplan:// URLs — extract filename param
+        if "noteplan://" in file_path:
+            from urllib.parse import urlparse, parse_qs, unquote
+            try:
+                parsed = urlparse(file_path)
+                qs = parse_qs(parsed.query)
+                file_path = unquote(qs.get("filename", [file_path])[0])
+            except Exception:
+                pass
+        # URL-decode any %20 etc in the path
+        from urllib.parse import unquote
+        file_path = unquote(file_path)
         return noteplan_read(file_path)
 
     elif tool == "noteplan_write":
@@ -674,13 +731,14 @@ async def classify_and_execute(user_message):
     global conversation_history
 
     conversation_history.append({"role": "user", "content": user_message})
-    if len(conversation_history) > 20:
-        conversation_history = conversation_history[-20:]
+    if len(conversation_history) > 40:
+        conversation_history = conversation_history[-40:]
 
-    # Step 1: Classify intent (include enough history for follow-ups like "read that email")
+    # Step 1: Classify intent — send generous history for multi-turn context
+    # Each tool call produces ~3 messages (user + tool_output + reply), so 20 messages = ~6-7 exchanges
     classify_messages = [
         {"role": "system", "content": CLASSIFIER_PROMPT},
-    ] + conversation_history[-10:]  # Last 5 exchanges — includes tool output for follow-up references
+    ] + conversation_history[-20:]
 
     raw = await call_llm(classify_messages, max_tokens=500)
     if not raw:
