@@ -1110,15 +1110,29 @@ class UIHandler(SimpleHTTPRequestHandler):
     # ── /api/calendar ────────────────────────────────────────────
 
     def _handle_calendar(self):
-        cached = self._get_cached("calendar")
+        # Support ?date=YYYY-MM-DD query param for viewing other days
+        from datetime import date as date_cls, timedelta
+        from urllib.parse import urlparse, parse_qs
+        query_params = parse_qs(urlparse(self.path).query)
+        requested_date = query_params.get("date", [None])[0]
+        
+        if requested_date:
+            try:
+                target_date = date_cls.fromisoformat(requested_date)
+            except ValueError:
+                target_date = date_cls.today()
+        else:
+            target_date = date_cls.today()
+        
+        cache_key = f"calendar_{target_date.isoformat()}"
+        cached = self._get_cached(cache_key)
         if cached is not None:
             return self._send_json(cached)
         try:
-            from datetime import date, timedelta
-            today = date.today().isoformat()
-            tomorrow = (date.today() + timedelta(days=1)).isoformat()
+            day_start = target_date.isoformat()
+            day_end = (target_date + timedelta(days=1)).isoformat()
             result = subprocess.run(
-                ["acal", "events", "list", "--from", today, "--to", tomorrow],
+                ["acal", "events", "list", "--from", day_start, "--to", day_end],
                 capture_output=True, text=True, timeout=15
             )
             raw = json.loads(result.stdout) if result.stdout.strip() else {}
@@ -1135,7 +1149,7 @@ class UIHandler(SimpleHTTPRequestHandler):
                     "calendarId": ev.get("calendarId", ""),
                 })
             events.sort(key=lambda e: e.get("start", ""))
-            self._set_cached("calendar", events)
+            self._set_cached(cache_key, events)
             self._send_json(events)
         except Exception as e:
             print(f"[Hermes] /api/calendar error: {e}")

@@ -328,6 +328,15 @@
     font-weight: 700;
     border: 1px solid var(--cyan-dim);
   }
+  .cal-day.selected {
+    background: rgba(255, 107, 53, 0.2);
+    color: var(--orange);
+    font-weight: 700;
+    border: 1px solid var(--orange);
+  }
+  .cal-day.current-month:hover {
+    background: rgba(0, 240, 255, 0.1);
+  }
   .cal-day.has-event {
     position: relative;
   }
@@ -1276,6 +1285,7 @@ function typeWriter(el, text, i) {
 // ── Calendar State ──
 let calYear, calMonth;
 let calendarEvents = [];
+let selectedDate = new Date(); // Currently selected date for timeline view
 
 (function initCalendar() {
   const now = new Date();
@@ -1332,10 +1342,19 @@ function renderCalendar() {
     if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) {
       el.classList.add('today');
     }
+    if (d === selectedDate.getDate() && calMonth === selectedDate.getMonth() && calYear === selectedDate.getFullYear()) {
+      el.classList.add('selected');
+    }
     if (eventDates.has(d)) {
       el.classList.add('has-event');
     }
     el.textContent = d;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      selectedDate = new Date(calYear, calMonth, d);
+      renderCalendar(); // Re-render to update selected highlight
+      fetchDayEvents(selectedDate); // Fetch events for that day
+    });
     grid.appendChild(el);
   }
   
@@ -1355,8 +1374,16 @@ function renderDayTimeline(events) {
   timeline.innerHTML = '';
   
   const today = new Date();
-  // Use local date string (YYYY-MM-DD) to avoid UTC timezone shift
-  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  const viewDate = selectedDate || today;
+  const isToday = viewDate.toDateString() === today.toDateString();
+  
+  // Show which date we're viewing
+  const dateLabel = document.createElement('div');
+  dateLabel.style.cssText = 'font-family: Orbitron, sans-serif; font-size: 0.55rem; letter-spacing: 2px; color: ' + (isToday ? 'var(--cyan)' : 'var(--orange)') + '; text-align: center; padding: 4px 0; text-transform: uppercase;';
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  dateLabel.textContent = isToday ? '── TODAY ──' : `── ${dayNames[viewDate.getDay()]} ${monthNames[viewDate.getMonth()]} ${viewDate.getDate()} ──`;
+  timeline.appendChild(dateLabel);
   
   // 💻Work calendar ID
   const WORK_CAL_ID = '52639B21-7511-435C-B286-5F972450E54D';
@@ -1438,8 +1465,8 @@ function renderDayTimeline(events) {
       }
     });
     
-    // Add "now" indicator on current hour
-    if (h === today.getHours()) {
+    // Add "now" indicator on current hour (only when viewing today)
+    if (isToday && h === today.getHours()) {
       row.classList.add('current-hour');
     }
     
@@ -1569,7 +1596,8 @@ function updateTokenBar(data) {
 // ── Data Fetching ──
 async function fetchCalendar() {
   try {
-    const res = await fetch('/api/calendar');
+    const dateStr = selectedDate.getFullYear() + '-' + String(selectedDate.getMonth()+1).padStart(2,'0') + '-' + String(selectedDate.getDate()).padStart(2,'0');
+    const res = await fetch('/api/calendar?date=' + dateStr);
     if (res.ok) {
       const data = await res.json();
       calendarEvents = data.events || data || [];
@@ -1578,6 +1606,23 @@ async function fetchCalendar() {
     }
   } catch(e) {
     console.log('Calendar fetch skipped:', e.message);
+    renderDayTimeline([]);
+  }
+}
+
+async function fetchDayEvents(date) {
+  // Fetch events for a specific clicked date
+  try {
+    const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+    const res = await fetch('/api/calendar?date=' + dateStr);
+    if (res.ok) {
+      const data = await res.json();
+      const events = data.events || data || [];
+      calendarEvents = events;
+      renderDayTimeline(events);
+    }
+  } catch(e) {
+    console.log('Day fetch skipped:', e.message);
     renderDayTimeline([]);
   }
 }
