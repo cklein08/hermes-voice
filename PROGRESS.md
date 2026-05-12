@@ -174,7 +174,35 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - **Personal config gitignored** — API keys and paths stay local
 - **Pushed to GitHub**: https://github.com/cklein08/hermes-voice
 
-### Status: ✅ v4 Running
+### v5: Command Center UI
+- **Complete UI overhaul — three-column command center layout**
+- **LEFT PANEL (280px):**
+  - Mini month calendar grid with today highlighted in cyan
+  - Month navigation with < > arrows
+  - Event dots on days with calendar entries
+  - Time-blocked day view (8AM–6PM) with colored event blocks
+  - Cyan blocks for regular events, orange for speaking/calls
+- **CENTER:**
+  - Smaller orb (350px canvas) with all 5 animation states preserved
+  - Chat log + input bar below
+- **RIGHT PANEL (280px):**
+  - Tasks list from 4 reminder lists (Work items, Tasks, Personal, Family)
+  - Overdue dates in orange, upcoming in cyan
+  - Clients list with RAG status dots (🔴🟠🟡🟢)
+- **TOP BAR:**
+  - Token usage progress bar (4px, full width)
+  - Tracks LLM input/output tokens, shows percentage
+  - Color shifts: cyan → orange (75%) → red (90%)
+- **REST API endpoints added to server.py:**
+  - `/api/calendar` — acal events, parsed from {"ok","data"} wrapper
+  - `/api/clients` — dashboard_data.json client array
+  - `/api/tasks` — remindctl parser rewritten for actual output format
+  - `/api/tokens` — tracks cumulative LLM token usage (1M limit)
+  - `/api/briefing` — briefing_data.json sections
+  - 60-second cache on all endpoints
+- **Auto-refresh:** calendar/tasks/clients every 5min, tokens every 30s
+
+### Status: ✅ v5 Running — Command Center
 - Server starts and serves UI
 - TTS confirmed working with British voice
 - All imports validated
