@@ -113,6 +113,9 @@ def _build_tool_list():
         tools.append('- "noteplan_write": Create a new note in the Work folder. Params: {"filename": "Note Title.txt", "content": "note content here"}')
         tools.append('- "noteplan_append": Add content to an existing note. Params: {"filename": "Existing Note.txt", "content": "content to append"}')
 
+    # Meeting processor
+    tools.append('- "meeting_process": Process a meeting summary — saves to NotePlan, creates reminders for action items, appends to client dossier. Params: {"text": "meeting notes text", "client": "optional client name"}')
+    
     # Chat is always available
     tools.append('- "chat": Just a conversational response, no tool needed. Params: {"reply": "your response"}')
     return "\n".join(tools)
@@ -196,7 +199,9 @@ IMPORTANT:
 - NOTEPLAN URLs: When user pastes a noteplan:// URL, use noteplan_read with the full URL as the "file" param. The system will extract the filename automatically.
 - WEB URLs: When user pastes or mentions a specific URL (https://...), use web_extract to fetch and read it. Use web_search for general queries.
 - MULTI-STEP: When the user asks you to combine information (e.g., "read this note and add it to a dossier"), do the FIRST step. The user will confirm before you do the next step. Don't say you can't — just do the first part.
-- CONTEXT: Always check conversation history. If the user says "that", "it", "the note", "those details" — they're referring to something from a previous message. Find it in history and use it."""
+- CONTEXT: Always check conversation history. If the user says "that", "it", "the note", "those details" — they're referring to something from a previous message. Find it in history and use it.
+- MEETING NOTES: When user drops meeting notes, a Tactiq/Littlebird export, or asks to process meeting notes, use meeting_process. Pass the full text and client name if known. This saves to NotePlan, creates reminders, and appends to client dossiers.
+- CALENDAR ADD: When user says "add to calendar", "schedule this", "put this on my calendar" — use calendar_create. Extract title, date/time, location from the conversation context. Don't say you can't — the info is in the history."""
 
 
 def build_response_prompt():
@@ -805,6 +810,33 @@ print(text[:3000])
             return "Missing filename or content to append."
         return noteplan_append(filename, content)
 
+    # ── Meeting processor ──
+    elif tool == "meeting_process":
+        text = params.get("text", "")
+        client = params.get("client", "")
+        if not text:
+            return "Missing meeting text to process."
+        # Save to meeting inbox for the processor pipeline to pick up
+        inbox_dir = Path(HERMES_BASE) / "meeting-inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = time.strftime("%Y-%m-%d-%H%M")
+        safe_client = re.sub(r'[^\w\s-]', '', client).strip().replace(' ', '-') if client else "meeting"
+        filename = f"{timestamp}-{safe_client}.md"
+        filepath = inbox_dir / filename
+        try:
+            filepath.write_text(text, encoding="utf-8")
+            result = f"Meeting notes saved to inbox: {filename}. "
+            # Also try to run the processor directly
+            processor = Path(HERMES_BASE) / "scripts" / "meeting-processor" / "processor.py"
+            if processor.exists():
+                proc_result = run_local_command(f'cd "{processor.parent}" && python3 processor.py --file "{filepath}"', timeout=60)
+                result += f"Processor output: {proc_result[:300]}"
+            else:
+                result += "Meeting processor will pick it up automatically."
+            return result
+        except Exception as e:
+            return f"Error saving meeting notes: {e}"
+
     # ── Chat (always available) ──
     elif tool == "chat":
         return params.get("reply", "I'm here. How can I help?")
@@ -831,7 +863,7 @@ async def call_llm(messages, max_tokens=500):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "anthropic/claude-3.5-haiku",
+                "model": "anthropic/claude-3.5-sonnet",
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": max_tokens,
@@ -902,8 +934,10 @@ async def classify_and_execute(user_message):
     tool_output = await loop.run_in_executor(None, execute_tool, tool, params)
     print(f"[Hermes] Tool output ({tool}): {tool_output[:200]}")
 
-    # Store tool output in conversation history so follow-ups have context
-    tool_context = f"[Tool: {tool}]\n{tool_output[:2000]}"
+    # Store CONDENSED tool output in conversation history to preserve context window
+    # Full output eats too many tokens — keep just enough for follow-up references
+    condensed = tool_output[:800] if len(tool_output) > 800 else tool_output
+    tool_context = f"[Tool: {tool}, Params: {json.dumps(params)[:200]}]\n{condensed}"
     conversation_history.append({"role": "assistant", "content": tool_context})
 
     # Build metadata for noteplan write/append (clickable link in UI)
