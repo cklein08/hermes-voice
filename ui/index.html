@@ -1099,6 +1099,11 @@ function connect() {
       case 'response':
         addChatEntry('HERMES', data.text, 'hermes');
         setStatus('PREPARING VOICE', 'active');
+        // Reset file upload zone if it was scanning
+        if (fileDropResult && fileDropResult.textContent.includes('Scanning')) {
+          fileDropResult.textContent = '✓ Analysis complete';
+          setTimeout(() => { fileDropResult.textContent = ''; }, 5000);
+        }
         break;
         
       case 'noteplan_link':
@@ -1762,16 +1767,26 @@ function handleFileUpload(file) {
     return;
   }
   const reader = new FileReader();
+  // Show uploading state immediately
+  fileDropResult.textContent = '⏳ Uploading ' + file.name + '...';
+  fileDropResult.className = 'file-drop-result';
+  setState('processing');
+  setStatus('SCANNING FILE', 'thinking-state');
+  
   reader.onload = () => {
     const base64 = reader.result.split(',')[1];
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'file_upload', name: file.name, content: base64, mime: file.type }));
-      fileDropResult.textContent = '✓ ' + file.name;
+      fileDropResult.textContent = '🔍 Scanning ' + file.name + '...';
       fileDropResult.className = 'file-drop-result';
+      addChatEntry('YOU', '📎 Uploaded: ' + file.name, 'user');
+      setState('thinking');
+      setStatus('ANALYSING FILE', 'thinking-state');
       logActivity('FILE UPLOAD: ' + file.name);
     } else {
       fileDropResult.textContent = 'Not connected';
       fileDropResult.className = 'file-drop-result error';
+      setState('idle');
       logActivity('FILE UPLOAD FAILED: not connected', true);
     }
   };
