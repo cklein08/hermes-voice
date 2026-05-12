@@ -108,6 +108,8 @@ def _build_tool_list():
     if ENABLED_MODULES.get("noteplan", {}).get("enabled", False):
         tools.append('- "noteplan_search": Search NotePlan notes by keyword. Params: {"query": "search terms"}')
         tools.append('- "noteplan_read": Read a specific NotePlan note. Params: {"file": "relative/path/to/note.md"}')
+        tools.append('- "noteplan_write": Create a new note in the Work folder. Params: {"filename": "Note Title.txt", "content": "note content here"}')
+        tools.append('- "noteplan_append": Add content to an existing note. Params: {"filename": "Existing Note.txt", "content": "content to append"}')
 
     # Chat is always available
     tools.append('- "chat": Just a conversational response, no tool needed. Params: {"reply": "your response"}')
@@ -144,6 +146,8 @@ def _build_tool_instructions():
     if ENABLED_MODULES.get("noteplan", {}).get("enabled", False):
         instructions.append('When they ask to search notes, find a note, or look something up in their notes, USE noteplan_search.')
         instructions.append('When they ask to read a specific note or open a note, USE noteplan_read.')
+        instructions.append('When they ask to create a note, write something down, make a dossier, or save notes, USE noteplan_write. Dossiers are just notes with "Dossier" in the filename.')
+        instructions.append('When they ask to add to an existing note, append to a dossier, or update notes, USE noteplan_append. Look in conversation history for the exact filename if referenced.')
 
     return "\n".join(instructions)
 
@@ -370,6 +374,47 @@ def noteplan_read(file_path):
         return f"Error reading note: {e}"
 
 
+def noteplan_write(filename, content, append=False):
+    """Create or append to a note in the NotePlan Work folder."""
+    if not NOTEPLAN_PATH:
+        return "NotePlan path not configured. Please run the setup wizard."
+    np_path = Path(NOTEPLAN_PATH).expanduser()
+    work_path = np_path / "Work"
+    if not work_path.exists():
+        work_path = np_path  # Fall back to root notes path
+    
+    # Sanitize filename
+    safe_name = filename.strip()
+    if not safe_name.endswith(('.txt', '.md')):
+        safe_name += '.txt'
+    
+    target = work_path / safe_name
+    
+    # Security check
+    try:
+        target.resolve().relative_to(np_path.resolve())
+    except ValueError:
+        return "Access denied: path is outside the NotePlan directory."
+    
+    try:
+        if append and target.exists():
+            existing = target.read_text(encoding="utf-8", errors="ignore")
+            # Add separator + new content
+            new_content = existing.rstrip() + "\n\n---\n\n" + content
+            target.write_text(new_content, encoding="utf-8")
+            return f"Appended to note: {safe_name}"
+        else:
+            target.write_text(content, encoding="utf-8")
+            return f"Created note: {safe_name}"
+    except Exception as e:
+        return f"Error writing note: {e}"
+
+
+def noteplan_append(filename, content):
+    """Append content to an existing note (convenience wrapper)."""
+    return noteplan_write(filename, content, append=True)
+
+
 # ── Dashboard/Briefing Plugin Tools ─────────────────────────────
 
 PLUGINS_DIR = BASE_DIR / "plugins"
@@ -561,6 +606,24 @@ def execute_tool(tool, params):
         if not file_path:
             return "Missing file path."
         return noteplan_read(file_path)
+
+    elif tool == "noteplan_write":
+        if not ENABLED_MODULES.get("noteplan", {}).get("enabled"):
+            return "NotePlan module is not enabled."
+        filename = params.get("filename", "")
+        content = params.get("content", "")
+        if not filename or not content:
+            return "Missing filename or content for the note."
+        return noteplan_write(filename, content, append=False)
+
+    elif tool == "noteplan_append":
+        if not ENABLED_MODULES.get("noteplan", {}).get("enabled"):
+            return "NotePlan module is not enabled."
+        filename = params.get("filename", "")
+        content = params.get("content", "")
+        if not filename or not content:
+            return "Missing filename or content to append."
+        return noteplan_append(filename, content)
 
     # ── Chat (always available) ──
     elif tool == "chat":
