@@ -208,7 +208,30 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - Recurring/multi-day events fixed — trust acal's date range filtering instead of double-filtering by start date
 - Current hour highlighted with cyan border + auto-scroll
 
-### Status: ✅ v5 Running — Command Center
+### v6: JARVIS Enhancements (System Monitor, File Upload, Status Badges)
+- System monitor panel: CPU, RAM, Disk bars + uptime + process count (5s refresh)
+- Live clock (HH:MM:SS + date) in header, updates every second
+- File upload: drag-and-drop with image OCR (macOS Vision + tesseract fallback)
+- Auto-scan on upload: orb goes purple → analyses → reports calendar events
+- Status badges: AI CORE ACTIVE / MIC READY below orb
+- Activity log: scrollable monospace event log with timestamps
+
+### v7: Context + Calendar Create + Meeting Processor + Sonnet
+- **Context fix**: tool output condensed to 800 chars (was 2000), history 40 msgs (was 20)
+- **LLM upgrade**: claude-3.5-haiku → claude-3.5-sonnet (much better multi-turn reasoning)
+- **calendar_create**: new tool creates events via acal, maps personal/work/family calendars
+- **meeting_process**: saves to inbox, runs full processor pipeline (NotePlan + reminders + dossiers)
+- **web_extract**: fetch and read specific URLs (experienceleague.adobe.com, etc.)
+- **web_search**: fixed broken DuckDuckGo curl, now uses ddgr + Python urllib fallback
+- **noteplan:// URL handling**: auto-extracts filename from noteplan:// x-callback URLs
+- **File upload feedback**: ⏳ Uploading → 🔍 Scanning → ✓ Analysis complete flow
+- **Clickable calendar**: click any day to view that day's events, selected=orange, today=cyan
+- **Scrollable timeline**: 7AM-8PM with max-height 280px
+- **NotePlan write link**: clickable noteplan:// link in chat after creating notes
+- **Follow-up instructions**: classifier knows about "that", "it", multi-step workflows
+- **Cron jobs**: daily chat archive (6PM Mon-Fri), weekly memory cleanup (Sun 10AM)
+
+### Status: ✅ v7 Running — Full Command Center
 - Server starts and serves UI
 - TTS confirmed working with British voice
 - All imports validated
