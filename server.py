@@ -1367,10 +1367,12 @@ class UIHandler(SimpleHTTPRequestHandler):
         if cached is not None:
             return self._send_json(cached)
         try:
-            day_start = target_date.isoformat()
-            day_end = (target_date + timedelta(days=1)).isoformat()
+            # WORKAROUND: acal has an off-by-one bug — querying date X
+            # returns events for date X-1. Offset by +1 day to compensate.
+            query_start = (target_date + timedelta(days=1)).isoformat()
+            query_end = (target_date + timedelta(days=2)).isoformat()
             result = subprocess.run(
-                ["acal", "events", "list", "--from", day_start, "--to", day_end],
+                ["acal", "events", "list", "--from", query_start, "--to", query_end],
                 capture_output=True, text=True, timeout=15
             )
             raw = json.loads(result.stdout) if result.stdout.strip() else {}
@@ -1378,12 +1380,35 @@ class UIHandler(SimpleHTTPRequestHandler):
             event_list = raw.get("data", raw) if isinstance(raw, dict) else raw
             events = []
             for ev in event_list:
+                raw_start = ev.get("start", ev.get("startDate", ""))
+                raw_end = ev.get("end", ev.get("endDate", ""))
+                is_allday = ev.get("allDay", ev.get("isAllDay", False))
+                # Normalize recurring event dates to the target date.
+                # acal returns recurring events with the ORIGINAL occurrence's
+                # start date (may be days ago). Shift to target date so the
+                # client calendar dots and timeline land on the right day.
+                if raw_start and not is_allday:
+                    try:
+                        from datetime import datetime as _dt
+                        parsed = _dt.fromisoformat(raw_start)
+                        if parsed.date() != target_date:
+                            # Keep same time-of-day, shift to target date
+                            shifted = parsed.replace(year=target_date.year,
+                                                     month=target_date.month,
+                                                     day=target_date.day)
+                            raw_start = shifted.isoformat()
+                            if raw_end:
+                                parsed_end = _dt.fromisoformat(raw_end)
+                                duration = parsed_end - parsed
+                                raw_end = (shifted + duration).isoformat()
+                    except (ValueError, TypeError):
+                        pass
                 events.append({
                     "title": ev.get("title", ""),
-                    "start": ev.get("start", ev.get("startDate", "")),
-                    "end": ev.get("end", ev.get("endDate", "")),
+                    "start": raw_start,
+                    "end": raw_end,
                     "location": ev.get("location", ""),
-                    "allDay": ev.get("allDay", ev.get("isAllDay", False)),
+                    "allDay": is_allday,
                     "calendarId": ev.get("calendarId", ""),
                 })
             events.sort(key=lambda e: e.get("start", ""))

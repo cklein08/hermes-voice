@@ -841,6 +841,10 @@
       <ul class="client-list" id="clientList">
         <li class="empty-msg">Loading clients...</li>
       </ul>
+      <div class="dashboard-buttons" style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+        <button class="btn dashboard-btn" onclick="openDashboard('client')" style="width:100%; padding: 6px 8px; font-size: 0.5rem;">📊 CLIENT DASHBOARD</button>
+        <button class="btn dashboard-btn" onclick="openDashboard('briefing')" style="width:100%; padding: 6px 8px; font-size: 0.5rem;">📋 DAILY BRIEFING</button>
+      </div>
     </div>
 
     <!-- File Upload -->
@@ -1659,6 +1663,14 @@ async function fetchClients() {
   } catch(e) {
     console.log('Clients fetch skipped:', e.message);
     renderClients([]);
+  }
+}
+
+function openDashboard(type) {
+  if (type === 'client') {
+    window.open('file:///Users/cklein/.hermes/dashboard/index.html', '_blank');
+  } else if (type === 'briefing') {
+    window.open('file:///Users/cklein/.hermes/daily-briefing/index.html', '_blank');
   }
 }
 
