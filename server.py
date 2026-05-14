@@ -1518,7 +1518,7 @@ class UIHandler(SimpleHTTPRequestHandler):
             self.end_headers()
 
     def _handle_prompt_post(self):
-        """Accept a prompt via POST and forward it to the hermes:// gateway."""
+        """Accept a prompt via POST and execute it via Hermes CLI agent."""
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode("utf-8")
@@ -1527,18 +1527,23 @@ class UIHandler(SimpleHTTPRequestHandler):
             if not prompt:
                 return self._send_json({"error": "No prompt provided"}, 400)
 
-            # Forward to hermes:// URL scheme (macOS open command)
-            import urllib.parse
-            encoded = urllib.parse.quote(prompt, safe="")
-            url = f"hermes://prompt/{encoded}"
-            subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"[Hermes] /api/prompt forwarded ({len(prompt)} chars)")
+            # Run via Hermes CLI in background (non-blocking)
+            hermes_python = str(Path.home() / ".hermes" / "hermes-agent" / "venv" / "bin" / "python")
+            cmd = [hermes_python, "-m", "hermes_cli.main", "chat", "-q", prompt]
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                cwd=str(Path.home() / ".hermes" / "hermes-agent"),
+                start_new_session=True,
+            )
+            print(f"[Hermes] /api/prompt → hermes chat -q ({len(prompt)} chars)")
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "message": "Prompt sent to gateway"}).encode())
+            self.wfile.write(json.dumps({"ok": True, "message": "Prompt sent to Hermes agent"}).encode())
         except Exception as e:
             print(f"[Hermes] /api/prompt error: {e}")
             self._send_json({"error": str(e)}, 500)
