@@ -175,6 +175,9 @@ def _build_tool_instructions():
         instructions.append('When they ask to create a note, write something down, make a dossier, or save notes, USE noteplan_write. Dossiers are just notes with "Dossier" in the filename.')
         instructions.append('When they ask to add to an existing note, append to a dossier, or update notes, USE noteplan_append. Look in conversation history for the exact filename if referenced.')
 
+    # File path handling
+    instructions.append('When the user provides a file path (starting with / or ~/), USE terminal with command: cat "<path>" to read it. Then summarize what you find. If it is a NotePlan note path, use noteplan_read instead.')
+
     return "\n".join(instructions)
 
 

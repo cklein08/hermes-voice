@@ -852,7 +852,7 @@
       <div class="panel-header">FILE UPLOAD</div>
       <div class="file-drop-zone" id="fileDropZone">
         <div class="file-drop-icon">⬆</div>
-        <div class="file-drop-text">Drop file or click to browse</div>
+        <div class="file-drop-text">Drop file or click to browse<br><span style="font-size:0.45rem;opacity:0.5">Tip: paste a file path into the chat input (Finder → right-click → Copy as Pathname)</span></div>
         <div class="file-drop-result" id="fileDropResult"></div>
         <input type="file" class="file-drop-input" id="fileInput" accept=".txt,.pdf,.py,.js,.json,.csv,.md,.png,.jpg,.jpeg,.heic,.webp,.gif,.bmp">
       </div>
@@ -1294,8 +1294,12 @@ function writeString(view, offset, string) {
 
 // ── Text Input ──
 function sendText() {
-  const text = textInput.value.trim();
+  let text = textInput.value.trim();
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  // Detect bare file paths — wrap with context for the LLM
+  if (/^(\/[\w.\/\- ]+|~\/[\w.\/\- ]+)$/.test(text) && !text.includes(' ')) {
+    text = 'I pasted this file path: ' + text + ' — please read and analyze it.';
+  }
   addChatEntry('YOU', text, 'user');
   ws.send(JSON.stringify({ type: 'text_command', text }));
   textInput.value = '';
