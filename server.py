@@ -1324,6 +1324,25 @@ class UIHandler(SimpleHTTPRequestHandler):
         """Store data in cache."""
         _api_cache[key] = (time.time(), data)
 
+    def _serve_file(self, filepath):
+        """Serve a local HTML file."""
+        try:
+            if filepath.exists():
+                body = filepath.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"File not found")
+        except Exception as e:
+            print(f"[Hermes] _serve_file error: {e}")
+            self.send_response(500)
+            self.end_headers()
+
     # ── Route dispatch ───────────────────────────────────────────
 
     def do_GET(self):
@@ -1340,6 +1359,10 @@ class UIHandler(SimpleHTTPRequestHandler):
             self._handle_briefing()
         elif path == "/api/system":
             self._handle_system()
+        elif path == "/dashboard/client":
+            self._serve_file(Path(HERMES_BASE) / "dashboard" / "index.html")
+        elif path == "/dashboard/briefing":
+            self._serve_file(Path(HERMES_BASE) / "daily-briefing" / "index.html")
         elif path.startswith("/api/"):
             self._send_json({"error": "Unknown API endpoint"}, 404)
         else:
