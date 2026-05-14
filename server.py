@@ -971,8 +971,8 @@ async def classify_and_execute(user_message):
     total_output_tokens = 0
 
     conversation_history.append({"role": "user", "content": user_message})
-    if len(conversation_history) > 40:
-        conversation_history = conversation_history[-40:]
+    if len(conversation_history) > 60:
+        conversation_history = conversation_history[-60:]
 
     # Select model via trace-driven router
     routed_model = get_best_model(user_message, default_model=LLM_MODEL)
@@ -984,7 +984,7 @@ async def classify_and_execute(user_message):
     # Step 1: Classify intent — send generous history for multi-turn context
     classify_messages = [
         {"role": "system", "content": full_classifier},
-    ] + conversation_history[-20:]
+    ] + conversation_history[-30:]
 
     raw, usage1 = await call_llm(classify_messages, max_tokens=500, model_override=routed_model)
     total_input_tokens += usage1.get("input_tokens", 0)

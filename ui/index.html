@@ -1305,6 +1305,23 @@ function sendText() {
 
 textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
 
+// Allow dropping file paths directly into the text input
+textInput.addEventListener('dragover', (e) => e.preventDefault());
+textInput.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const uriList = e.dataTransfer.getData('text/uri-list');
+  const plainText = e.dataTransfer.getData('text/plain');
+  const droppedPath = uriList || plainText || '';
+  if (droppedPath && (droppedPath.startsWith('file://') || droppedPath.startsWith('/'))) {
+    let filePath = droppedPath.startsWith('file://') ? decodeURIComponent(droppedPath.replace('file://', '')) : droppedPath;
+    filePath = filePath.trim().split('\n')[0].trim();
+    // Insert the path into the text input at cursor
+    const current = textInput.value;
+    textInput.value = current ? current + ' ' + filePath : filePath;
+    textInput.focus();
+  }
+});
+
 // ── UI Helpers ──
 function setStatus(text, className) {
   statusEl.textContent = text;
@@ -1808,6 +1825,25 @@ fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('
 fileDropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   fileDropZone.classList.remove('dragover');
+  // Check for file path drops (Finder drag) via text/uri-list or text/plain
+  const uriList = e.dataTransfer.getData('text/uri-list');
+  const plainText = e.dataTransfer.getData('text/plain');
+  const droppedPath = uriList || plainText || '';
+  if (droppedPath && (droppedPath.startsWith('file://') || droppedPath.startsWith('/'))) {
+    // Convert file:// URI to path
+    let filePath = droppedPath.startsWith('file://') ? decodeURIComponent(droppedPath.replace('file://', '')) : droppedPath;
+    filePath = filePath.trim().split('\n')[0].trim(); // First path only
+    fileDropResult.textContent = '📂 ' + filePath.split('/').pop();
+    addChatEntry('YOU', '📂 Dropped path: ' + filePath, 'user');
+    // Send as text command — the LLM can read/analyze the file
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const cmd = 'I dropped this file path: ' + filePath + ' — please read and analyze it.';
+      ws.send(JSON.stringify({ type: 'text_command', text: cmd }));
+      setState('thinking');
+      setStatus('READING FILE', 'thinking-state');
+    }
+    return;
+  }
   if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', () => {
