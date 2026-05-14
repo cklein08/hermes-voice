@@ -161,6 +161,10 @@ def _build_tool_instructions():
         instructions.append('When they say "briefing", "daily brief", "daily briefing" → use open_briefing.')
         instructions.append('When they say "refresh briefing" or "update briefing" → use refresh_briefing.')
 
+    # "Start" / "start the day" / "let's go" → open briefing + calendar summary
+    if ENABLED_MODULES.get("briefing", {}).get("enabled", False) or ENABLED_MODULES.get("calendar", {}).get("enabled", False):
+        instructions.append('When they say "start", "start the day", "let\'s start", "let\'s go", "hermes start", "good morning", or "morning" → use open_briefing to open the daily briefing dashboard. This is their "start of day" ritual.')
+
     if ENABLED_MODULES.get("noteplan", {}).get("enabled", False):
         instructions.append('When they ask to search notes, find a note, or look something up in their notes, USE noteplan_search.')
         instructions.append('When they ask to read a specific note or open a note, USE noteplan_read.')
