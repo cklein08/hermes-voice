@@ -531,29 +531,25 @@ PLUGINS_DIR = BASE_DIR / "plugins"
 
 
 def open_dashboard():
-    """Open the dashboard — check plugins dir first, fall back to hermes base."""
-    plugin_index = PLUGINS_DIR / "dashboard" / "index.html"
-    hermes_index = Path(HERMES_BASE) / "dashboard" / "index.html"
-    if plugin_index.exists():
-        run_local_command(f"open {plugin_index}")
-        return "Client engagement dashboard opened in your browser."
-    elif hermes_index.exists():
-        run_local_command(f"open {hermes_index}")
-        return "Client engagement dashboard opened in your browser."
-    else:
-        return "Dashboard not found. Please set up the dashboard plugin first."
+    """Open the dashboard via Hermes Voice server (so hermes:// prompts work)."""
+    run_local_command(f"open http://{HOST}:{HTTP_PORT}/dashboard/client")
+    return "Client engagement dashboard opened in your browser."
 
 
 def open_briefing():
-    """Open the briefing — check plugins dir first, fall back to hermes base."""
+    """Open the briefing via Hermes Voice server (so hermes:// prompts work)."""
+    run_local_command(f"open http://{HOST}:{HTTP_PORT}/dashboard/briefing")
+    return "Daily briefing dashboard opened in your browser."
+
+
+def _open_briefing_fallback():
+    """Fallback: open briefing as file:// if server routes fail."""
     plugin_index = PLUGINS_DIR / "briefing" / "index.html"
     hermes_index = Path(HERMES_BASE) / "daily-briefing" / "index.html"
     if plugin_index.exists():
         run_local_command(f"open {plugin_index}")
-        return "Daily briefing dashboard opened in your browser."
     elif hermes_index.exists():
         run_local_command(f"open {hermes_index}")
-        return "Daily briefing dashboard opened in your browser."
     else:
         return "Briefing not found. Please set up the briefing plugin first."
 
