@@ -1513,6 +1513,48 @@ class UIHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+    def do_POST(self):
+        path = self.path.split("?")[0]
+        if path == "/api/prompt":
+            self._handle_prompt_post()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def _handle_prompt_post(self):
+        """Accept a prompt via POST and forward it to the hermes:// gateway."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            data = json.loads(body)
+            prompt = data.get("prompt", "")
+            if not prompt:
+                return self._send_json({"error": "No prompt provided"}, 400)
+
+            # Forward to hermes:// URL scheme (macOS open command)
+            import urllib.parse
+            encoded = urllib.parse.quote(prompt, safe="")
+            url = f"hermes://prompt/{encoded}"
+            subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"[Hermes] /api/prompt forwarded ({len(prompt)} chars)")
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True, "message": "Prompt sent to gateway"}).encode())
+        except Exception as e:
+            print(f"[Hermes] /api/prompt error: {e}")
+            self._send_json({"error": str(e)}, 500)
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight."""
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     # ── Helper methods ───────────────────────────────────────────
 
     def _send_json(self, data, status=200):
