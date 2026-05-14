@@ -1517,6 +1517,21 @@ class UIHandler(SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def _handle_prompt_status(self, job_id):
+        """Check if a prompt job has finished."""
+        proc = UIHandler._prompt_jobs.get(job_id)
+        if not proc:
+            return self._send_json({"job_id": job_id, "status": "unknown"})
+        rc = proc.poll()
+        if rc is None:
+            return self._send_json({"job_id": job_id, "status": "running"})
+        else:
+            del UIHandler._prompt_jobs[job_id]
+            return self._send_json({"job_id": job_id, "status": "done", "exit_code": rc})
+
+    # Track running prompt jobs {job_id: subprocess.Popen}
+    _prompt_jobs = {}
+
     def _handle_prompt_post(self):
         """Accept a prompt via POST and execute it via Hermes CLI agent."""
         try:
@@ -1530,20 +1545,22 @@ class UIHandler(SimpleHTTPRequestHandler):
             # Run via Hermes CLI in background (non-blocking)
             hermes_python = str(Path.home() / ".hermes" / "hermes-agent" / "venv" / "bin" / "python")
             cmd = [hermes_python, "-m", "hermes_cli.main", "chat", "-q", prompt]
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 cwd=str(Path.home() / ".hermes" / "hermes-agent"),
                 start_new_session=True,
             )
-            print(f"[Hermes] /api/prompt → hermes chat -q ({len(prompt)} chars)")
+            job_id = str(proc.pid)
+            UIHandler._prompt_jobs[job_id] = proc
+            print(f"[Hermes] /api/prompt → hermes chat -q (pid={job_id}, {len(prompt)} chars)")
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "message": "Prompt sent to Hermes agent"}).encode())
+            self.wfile.write(json.dumps({"ok": True, "job_id": job_id}).encode())
         except Exception as e:
             print(f"[Hermes] /api/prompt error: {e}")
             self._send_json({"error": str(e)}, 500)
@@ -1617,6 +1634,9 @@ class UIHandler(SimpleHTTPRequestHandler):
             self._handle_system()
         elif path == "/api/traces":
             self._handle_traces()
+        elif path.startswith("/api/prompt/"):
+            job_id = path.split("/")[-1]
+            self._handle_prompt_status(job_id)
         elif path == "/dashboard/client":
             self._serve_file(Path(HERMES_BASE) / "dashboard" / "index.html")
         elif path == "/dashboard/briefing":
