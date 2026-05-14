@@ -121,6 +121,10 @@ def _build_tool_list():
         tools.append('- "noteplan_write": Create a new note in the Work folder. Params: {"filename": "Note Title.txt", "content": "note content here"}')
         tools.append('- "noteplan_append": Add content to an existing note. Params: {"filename": "Existing Note.txt", "content": "content to append"}')
 
+    # Start of day ritual
+    if ENABLED_MODULES.get("briefing", {}).get("enabled", False) or ENABLED_MODULES.get("dashboard", {}).get("enabled", False):
+        tools.append('- "start_day": Full start-of-day ritual — refreshes both the client dashboard and daily briefing with fresh data, then opens the briefing. No params needed.')
+
     # Web agent (browser automation)
     if ENABLED_MODULES.get("web_agent", {}).get("enabled", False):
         tools.append('- "web_browse": Browse the web with a real browser — navigate to URLs, search Google, click links, read page content, take screenshots. Params: {"instruction": "go to reddit.com"} or {"instruction": "search for Adobe stock price"} or {"instruction": "click Sign In"} or {"instruction": "read the page"}')
@@ -161,9 +165,9 @@ def _build_tool_instructions():
         instructions.append('When they say "briefing", "daily brief", "daily briefing" → use open_briefing.')
         instructions.append('When they say "refresh briefing" or "update briefing" → use refresh_briefing.')
 
-    # "Start" / "start the day" / "let's go" → open briefing + calendar summary
-    if ENABLED_MODULES.get("briefing", {}).get("enabled", False) or ENABLED_MODULES.get("calendar", {}).get("enabled", False):
-        instructions.append('When they say "start", "start the day", "let\'s start", "let\'s go", "hermes start", "good morning", or "morning" → use open_briefing to open the daily briefing dashboard. This is their "start of day" ritual.')
+    # "Start" / "start the day" / "let's go" → full start-of-day ritual
+    if ENABLED_MODULES.get("briefing", {}).get("enabled", False) or ENABLED_MODULES.get("dashboard", {}).get("enabled", False):
+        instructions.append('When they say "start", "start the day", "let\'s start", "let\'s go", "hermes start", "good morning", or "morning" → use start_day. This refreshes both dashboards and opens the daily briefing. It is their "start of day" ritual.')
 
     if ENABLED_MODULES.get("noteplan", {}).get("enabled", False):
         instructions.append('When they ask to search notes, find a note, or look something up in their notes, USE noteplan_search.')
@@ -583,6 +587,39 @@ def refresh_briefing():
     return f"Daily briefing regenerated and opened. {output}"
 
 
+def start_day():
+    """Full start-of-day ritual: refresh both dashboards, then open briefing."""
+    results = []
+    # Refresh client dashboard
+    try:
+        plugin_refresh = PLUGINS_DIR / "dashboard" / "refresh.sh"
+        hermes_refresh = Path(HERMES_BASE) / "scripts" / "dashboard" / "refresh.sh"
+        if plugin_refresh.exists():
+            _safe_tool(f"bash {plugin_refresh}", "dashboard-refresh", timeout=60)
+        elif hermes_refresh.exists():
+            _safe_tool(f"bash {hermes_refresh}", "dashboard-refresh", timeout=60)
+        results.append("Client dashboard refreshed.")
+    except Exception as e:
+        results.append(f"Client dashboard refresh error: {e}")
+
+    # Refresh daily briefing
+    try:
+        plugin_dir = PLUGINS_DIR / "briefing"
+        hermes_dir = Path(HERMES_BASE) / "scripts" / "daily-briefing"
+        if (plugin_dir / "collect_briefing.py").exists():
+            _safe_tool(f"cd {plugin_dir} && python3 collect_briefing.py && python3 generate_briefing.py", "briefing-refresh", timeout=60)
+        elif hermes_dir.exists():
+            _safe_tool(f"cd {hermes_dir} && python3 collect_briefing.py && python3 generate_briefing.py", "briefing-refresh", timeout=60)
+        results.append("Daily briefing refreshed.")
+    except Exception as e:
+        results.append(f"Briefing refresh error: {e}")
+
+    # Open the briefing
+    open_briefing()
+    results.append("Briefing opened.")
+    return " ".join(results)
+
+
 # ── Tool Dispatch ───────────────────────────────────────────────
 
 def execute_tool(tool, params):
@@ -778,6 +815,9 @@ print(text[:3000])
         if not ENABLED_MODULES.get("briefing", {}).get("enabled"):
             return "Briefing module is not enabled."
         return refresh_briefing()
+
+    elif tool == "start_day":
+        return start_day()
 
     # ── NotePlan ──
     elif tool == "noteplan_search":
