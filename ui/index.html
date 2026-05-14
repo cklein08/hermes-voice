@@ -1135,6 +1135,49 @@ function connect() {
           finishSpeaking();
         }
         break;
+
+      case 'auth_required':
+        // Show lock screen overlay
+        document.body.insertAdjacentHTML('beforeend', `
+          <div id="authOverlay" style="position:fixed;inset:0;background:rgba(0,5,15,0.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Orbitron,sans-serif;">
+            <div style="color:var(--cyan);font-size:1.2rem;letter-spacing:4px;margin-bottom:20px;">FACE AUTHENTICATION</div>
+            <div id="authCamera" style="width:320px;height:240px;border:2px solid var(--cyan-dim);border-radius:12px;overflow:hidden;background:#000;">
+              <img id="authFrame" style="width:100%;height:100%;object-fit:cover;" />
+            </div>
+            <div id="authMsg" style="color:var(--cyan-dim);font-size:0.6rem;letter-spacing:2px;margin-top:12px;">SCANNING...</div>
+          </div>
+        `);
+        break;
+
+      case 'auth_frame':
+        const authImg = document.getElementById('authFrame');
+        if (authImg) authImg.src = 'data:image/jpeg;base64,' + data.frame;
+        break;
+
+      case 'auth_status':
+        const overlay = document.getElementById('authOverlay');
+        const authMsgEl = document.getElementById('authMsg');
+        if (data.authenticated) {
+          if (authMsgEl) { authMsgEl.style.color = 'var(--cyan)'; authMsgEl.textContent = '✓ IDENTITY VERIFIED'; }
+          setTimeout(() => { if (overlay) overlay.remove(); }, 1000);
+        } else {
+          if (authMsgEl) { authMsgEl.style.color = 'var(--orange)'; authMsgEl.textContent = '✗ ACCESS DENIED'; }
+          setTimeout(() => { if (overlay) overlay.remove(); }, 3000);
+        }
+        break;
+
+      case 'gesture':
+        // Handle gesture events from the server
+        console.log('[Gesture]', data.gesture, data.hand);
+        const gestureMap = {
+          'pinch': () => { /* confirm/click */ document.getElementById('sendBtn')?.click(); },
+          'open_palm': () => { /* stop listening */ if (isRecording) toggleMic(); },
+          'fist': () => { /* mute toggle */ if (isRecording) toggleMic(); },
+          'thumbs_up': () => { /* positive feedback */ addChatEntry('GESTURE', '👍', 'user'); },
+          'peace': () => { /* wave/hello */ },
+        };
+        if (gestureMap[data.gesture]) gestureMap[data.gesture]();
+        break;
     }
   };
 

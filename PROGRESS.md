@@ -271,6 +271,36 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - Startup banner now shows active LLM model
 - OpenRouter API key moved from `.env` to `config.json` for reliable `nohup` startup
 
+### New Modules — Face Auth, Gesture Control, Web Agent
+Inspired by [ada_v2](https://github.com/nazirlouis/ada_v2) and [Mark-XXXIX](https://github.com/FatihMakes/Mark-XXXIX).
+
+**Face Authentication (modules/face_auth.py)** — 100% local, zero cost
+- MediaPipe Face Landmarker (478 landmarks per face)
+- Cosine similarity comparison against `reference.jpg` (threshold 0.85)
+- Background camera thread streams frames to UI lock screen
+- Auto-downloads model from Google Storage on first use
+- Capture reference photo: `python3 -m modules.face_auth --capture`
+- Enable in config: `"face_auth": {"enabled": true}`
+
+**Gesture Control (modules/gesture_control.py)** — 100% local, zero cost
+- MediaPipe Hands (21 landmarks per hand)
+- Recognizes: pinch, open_palm, fist, point_up, peace, thumbs_up, swipe_left/right
+- Debounced (0.5s), sends gesture events over WebSocket to UI
+- UI mappings: pinch=send, open_palm/fist=mute, thumbs_up=feedback
+- Enable in config: `"gesture_control": {"enabled": true}`
+
+**Web Agent (modules/web_agent.py)** — zero LLM cost
+- Playwright headless Chromium (1280×720)
+- Keyword-parsed instructions (no screenshot-based AI loop)
+- Commands: navigate, search, click by text, type in fields, scroll, back/forward, read page
+- Integrated as `web_browse` tool — classifier routes "browse to..." or "open website" here
+- Enable in config: `"web_agent": {"enabled": true}`
+
+**UI Changes:**
+- Lock screen overlay for face auth (camera feed + SCANNING/VERIFIED/DENIED states)
+- Gesture WebSocket handler (maps gestures to UI actions)
+- New WebSocket message types: auth_required, auth_frame, auth_status, gesture
+
 ---
 
 ## Backlog / Future Enhancements

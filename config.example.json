@@ -39,6 +39,15 @@
     "noteplan": {
       "enabled": false,
       "path": ""
+    },
+    "web_agent": {
+      "enabled": false
+    },
+    "face_auth": {
+      "enabled": false
+    },
+    "gesture_control": {
+      "enabled": false
     }
   }
 }

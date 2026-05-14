@@ -121,6 +121,10 @@ def _build_tool_list():
         tools.append('- "noteplan_write": Create a new note in the Work folder. Params: {"filename": "Note Title.txt", "content": "note content here"}')
         tools.append('- "noteplan_append": Add content to an existing note. Params: {"filename": "Existing Note.txt", "content": "content to append"}')
 
+    # Web agent (browser automation)
+    if ENABLED_MODULES.get("web_agent", {}).get("enabled", False):
+        tools.append('- "web_browse": Browse the web with a real browser — navigate to URLs, search Google, click links, read page content, take screenshots. Params: {"instruction": "go to reddit.com"} or {"instruction": "search for Adobe stock price"} or {"instruction": "click Sign In"} or {"instruction": "read the page"}')
+
     # Meeting processor
     tools.append('- "meeting_process": Process a meeting summary — saves to NotePlan, creates reminders for action items, appends to client dossier. Params: {"text": "meeting notes text", "client": "optional client name"}')
     
@@ -845,6 +849,31 @@ print(text[:3000])
         except Exception as e:
             return f"Error saving meeting notes: {e}"
 
+    # ── Web Agent (browser automation) ──
+    elif tool == "web_browse":
+        instruction = params.get("instruction", "")
+        if not instruction:
+            return "No instruction provided for web browsing."
+        try:
+            import asyncio as _aio
+            from modules.web_agent import WebAgent
+            async def _run_web():
+                agent = WebAgent()
+                await agent.start()
+                try:
+                    result = await agent.execute(instruction)
+                    return result
+                finally:
+                    await agent.stop()
+            # Run async playwright in a new event loop in this thread
+            result = _aio.run(_run_web())
+            if result.get("success"):
+                return f"[{result['action']}] {result['result'][:2000]}\nURL: {result.get('url', 'N/A')}"
+            else:
+                return f"Web agent error: {result.get('result', 'Unknown error')}"
+        except Exception as e:
+            return f"Web agent error: {e}"
+
     # ── Chat (always available) ──
     elif tool == "chat":
         return params.get("reply", "I'm here. How can I help?")
@@ -1060,12 +1089,104 @@ async def respond_to_command(websocket, command):
 
 # ── WebSocket Server ────────────────────────────────────────────
 
+_face_auth = None
+_gesture_ctrl = None
+
+def _init_face_auth():
+    """Initialize face auth if enabled and reference photo exists."""
+    global _face_auth
+    if _face_auth is not None:
+        return _face_auth
+    if not ENABLED_MODULES.get("face_auth", {}).get("enabled", False):
+        return None
+    try:
+        from modules.face_auth import FaceAuthenticator
+        ref_path = Path(__file__).parent / "modules" / "reference.jpg"
+        if not ref_path.exists():
+            ref_path = Path(__file__).parent / "reference.jpg"
+        if ref_path.exists():
+            _face_auth = FaceAuthenticator(str(ref_path))
+            print(f"[Hermes] Face auth initialized (ref: {ref_path.name})")
+            return _face_auth
+        else:
+            print("[Hermes] Face auth enabled but no reference.jpg found. Run: python3 -m modules.face_auth --capture")
+    except Exception as e:
+        print(f"[Hermes] Face auth init failed: {e}")
+    return None
+
+def _init_gesture_control(ws_send_callback=None):
+    """Initialize gesture control if enabled."""
+    global _gesture_ctrl
+    if _gesture_ctrl is not None:
+        return _gesture_ctrl
+    if not ENABLED_MODULES.get("gesture_control", {}).get("enabled", False):
+        return None
+    try:
+        from modules.gesture_control import GestureController
+        def on_gesture(data):
+            print(f"[Hermes] Gesture: {data['gesture']} ({data['hand']})")
+            if ws_send_callback:
+                ws_send_callback(data)
+        _gesture_ctrl = GestureController(on_gesture_callback=on_gesture)
+        print("[Hermes] Gesture control initialized")
+        return _gesture_ctrl
+    except Exception as e:
+        print(f"[Hermes] Gesture control init failed: {e}")
+    return None
+
 async def handle_client(websocket):
     print("[Hermes] Client connected.")
+
+    # Face auth gate
+    face_auth = _init_face_auth()
+    if face_auth:
+        await websocket.send(json.dumps({
+            "type": "auth_required",
+            "message": "Face authentication required."
+        }))
+        # Stream camera frames for auth
+        face_auth.start()
+        authenticated = False
+        for _ in range(150):  # ~15 seconds at 10fps
+            frame_b64 = face_auth.get_frame_base64()
+            if frame_b64:
+                await websocket.send(json.dumps({
+                    "type": "auth_frame",
+                    "frame": frame_b64
+                }))
+            result = face_auth.check_frame()
+            if result and result[0]:
+                authenticated = True
+                await websocket.send(json.dumps({
+                    "type": "auth_status",
+                    "authenticated": True,
+                    "similarity": round(result[1], 3)
+                }))
+                break
+            await asyncio.sleep(0.1)
+        face_auth.stop()
+        if not authenticated:
+            await websocket.send(json.dumps({
+                "type": "auth_status",
+                "authenticated": False,
+                "message": "Face not recognized. Access denied."
+            }))
+            return  # Disconnect
+
     await websocket.send(json.dumps({
         "type": "status",
         "message": "Hermes online. All systems operational."
     }))
+
+    # Start gesture control if enabled
+    gesture = _init_gesture_control(
+        ws_send_callback=lambda data: asyncio.run_coroutine_threadsafe(
+            websocket.send(json.dumps({"type": "gesture", **data})),
+            asyncio.get_event_loop()
+        )
+    )
+    if gesture:
+        gesture.start()
 
     in_conversation = False
     last_interaction = 0
