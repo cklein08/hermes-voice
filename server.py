@@ -10,9 +10,16 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import time
+
+# Add learning module to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from learning.trace_store import record_trace, estimate_cost, get_cost_summary, get_daily_costs, init_db as init_trace_db
+from learning.router import get_best_model
+from learning.icl_miner import format_icl_prompt_section, refresh_if_needed as refresh_icl
 import glob
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -851,10 +858,11 @@ token_usage = {"input": 0, "output": 0}
 
 # ── LLM Calls ──────────────────────────────────────────────────
 
-async def call_llm(messages, max_tokens=500):
-    """Call OpenRouter LLM."""
+async def call_llm(messages, max_tokens=500, model_override=None):
+    """Call OpenRouter LLM. Returns (content, usage_dict) tuple."""
     if not OPENROUTER_API_KEY:
-        return None
+        return None, {}
+    model = model_override or LLM_MODEL
     try:
         session = await get_http_session()
         async with session.post(
@@ -864,7 +872,7 @@ async def call_llm(messages, max_tokens=500):
                 "Content-Type": "application/json",
             },
             json={
-                "model": LLM_MODEL,
+                "model": model,
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": max_tokens,
@@ -875,27 +883,43 @@ async def call_llm(messages, max_tokens=500):
             usage = data.get("usage", {})
             token_usage["input"] += usage.get("prompt_tokens", 0)
             token_usage["output"] += usage.get("completion_tokens", 0)
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            return content, {
+                "model": model,
+                "input_tokens": usage.get("prompt_tokens", 0),
+                "output_tokens": usage.get("completion_tokens", 0),
+            }
     except Exception as e:
         print(f"[Hermes] LLM error: {e}")
-        return None
+        return None, {}
 
 
 async def classify_and_execute(user_message):
     """Use LLM to classify intent, execute tool, then format response."""
     global conversation_history
+    trace_start = time.time()
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     conversation_history.append({"role": "user", "content": user_message})
     if len(conversation_history) > 40:
         conversation_history = conversation_history[-40:]
 
+    # Select model via trace-driven router
+    routed_model = get_best_model(user_message, default_model=LLM_MODEL)
+
+    # Build classifier prompt with ICL examples
+    icl_section = format_icl_prompt_section()
+    full_classifier = CLASSIFIER_PROMPT + icl_section if icl_section else CLASSIFIER_PROMPT
+
     # Step 1: Classify intent — send generous history for multi-turn context
-    # Each tool call produces ~3 messages (user + tool_output + reply), so 20 messages = ~6-7 exchanges
     classify_messages = [
-        {"role": "system", "content": CLASSIFIER_PROMPT},
+        {"role": "system", "content": full_classifier},
     ] + conversation_history[-20:]
 
-    raw = await call_llm(classify_messages, max_tokens=500)
+    raw, usage1 = await call_llm(classify_messages, max_tokens=500, model_override=routed_model)
+    total_input_tokens += usage1.get("input_tokens", 0)
+    total_output_tokens += usage1.get("output_tokens", 0)
     if not raw:
         reply = "I'm afraid I can't reach my thinking engines at the moment."
         conversation_history.append({"role": "assistant", "content": reply})
@@ -966,12 +990,35 @@ async def classify_and_execute(user_message):
         {"role": "user", "content": f"User asked: {user_message}\n\nTool used: {tool}\nTool output:\n{tool_output[:1500]}"},
     ]
 
-    reply = await call_llm(format_messages, max_tokens=250)
+    reply, usage2 = await call_llm(format_messages, max_tokens=500, model_override=routed_model)
+    total_input_tokens += usage2.get("input_tokens", 0)
+    total_output_tokens += usage2.get("output_tokens", 0)
     if not reply:
         reply = f"Here's what I found: {tool_output[:200]}"
 
     # Also store the spoken reply so conversation flows naturally
     conversation_history.append({"role": "assistant", "content": reply})
+
+    # Record trace for learning
+    latency_ms = int((time.time() - trace_start) * 1000)
+    record_trace(
+        query=user_message,
+        tool=tool,
+        model=routed_model,
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
+        latency_ms=latency_ms,
+        success=True,
+        classifier_output=raw[:500] if raw else "",
+        response_preview=reply[:300],
+    )
+
+    # Periodically refresh ICL examples (every ~50 interactions)
+    try:
+        refresh_icl(min_traces=50)
+    except Exception:
+        pass
+
     return reply, metadata
 
 
@@ -1360,6 +1407,8 @@ class UIHandler(SimpleHTTPRequestHandler):
             self._handle_briefing()
         elif path == "/api/system":
             self._handle_system()
+        elif path == "/api/traces":
+            self._handle_traces()
         elif path == "/dashboard/client":
             self._serve_file(Path(HERMES_BASE) / "dashboard" / "index.html")
         elif path == "/dashboard/briefing":
@@ -1580,6 +1629,19 @@ class UIHandler(SimpleHTTPRequestHandler):
             self._send_json({})
 
     # ── /api/system ───────────────────────────────────────────────
+
+    def _handle_traces(self):
+        """Return trace/cost data for the learning dashboard."""
+        try:
+            data = {
+                "summary_7d": get_cost_summary(7),
+                "summary_1d": get_cost_summary(1),
+                "daily_costs": get_daily_costs(7),
+            }
+            self._send_json(data)
+        except Exception as e:
+            print(f"[Hermes] /api/traces error: {e}")
+            self._send_json({"error": str(e)}, 500)
 
     def _handle_system(self):
         # Use shorter TTL for system stats (5 seconds)

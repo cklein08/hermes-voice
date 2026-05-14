@@ -6,3 +6,5 @@ config.json
 *.mp3
 *.wav
 .DS_Store
+traces.db
+learning/icl_cache.json
