@@ -40,7 +40,7 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - **Wake word detection:** "Hermes" + common misheard variants
 - **Whisper STT:** base model, local/offline transcription
 - **Edge TTS:** British voice (en-GB-RyanNeural), streamed to client
-- **LLM integration:** OpenRouter API → Claude Sonnet 4
+- **LLM integration:** OpenRouter API → Gemini 2.5 Flash (configurable via `llm_model` in config.json)
 - **Persona:** British JARVIS — dry wit, concise, sardonic
 - **Conversation history:** Last 10 exchanges maintained
 - **Hybrid input:** Voice (via mic) or keyboard text commands
@@ -245,6 +245,31 @@ A JARVIS-inspired voice assistant with animated web UI, British TTS, wake word d
 - Bumped aiohttp timeout to 30s as safety net
 - Confirmed LLM responds correctly with British persona
 - Server restarted with key loaded — fully operational
+
+---
+
+## Session 2 — May 13, 2026
+
+### Calendar Off-By-One Fix
+- Discovered acal returns events offset by -1 day (querying May 13 gives May 12's events)
+- Root cause: acal's date boundary handling bug with `--from`/`--to` flags
+- Fix: Server now queries target_date+1 to compensate
+- Also normalizes recurring event start dates to the target date (acal returns original occurrence date for recurring events)
+
+### Dashboard Buttons
+- Added stacked 📊 CLIENT DASHBOARD and 📋 DAILY BRIEFING buttons below client list
+- Initially used `file://` URLs — Chrome blocks these from `http://` pages
+- Added `_serve_file()` helper + `/dashboard/client` and `/dashboard/briefing` server routes
+- Buttons now open via server-served HTML in new tabs
+
+### LLM Model Overhaul
+- `anthropic/claude-3.5-sonnet` was returning 404 — model ID retired from OpenRouter
+- Briefly fixed to `anthropic/claude-sonnet-4` but identified cost concern ($3/$15 per M tokens)
+- **Switched to `google/gemini-2.5-flash`** — ~20-25x cheaper ($0.15/$0.60 per M tokens), fast enough for voice tool routing
+- Inspired by [Mark-XXXIX](https://github.com/FatihMakes/Mark-XXXIX) which uses Gemini Flash for near-free operation
+- Model now configurable via `config.json` → `"llm_model"` key (default: `google/gemini-2.5-flash`)
+- Startup banner now shows active LLM model
+- OpenRouter API key moved from `.env` to `config.json` for reliable `nohup` startup
 
 ---
 

@@ -51,6 +51,7 @@ USER_GENDER = CONFIG.get("gender", "")
 VOICE = CONFIG.get("voice", "en-GB-RyanNeural")
 WHISPER_MODEL = CONFIG.get("whisper_model", "base")
 OPENROUTER_API_KEY = CONFIG.get("openrouter_api_key", "") or os.environ.get("OPENROUTER_API_KEY", "")
+LLM_MODEL = CONFIG.get("llm_model", "google/gemini-2.5-flash")
 WAKE_WORD = CONFIG.get("wake_word", "hermes")
 HOST = CONFIG.get("host", "127.0.0.1")
 WS_PORT = CONFIG.get("ws_port", 8765)
@@ -863,7 +864,7 @@ async def call_llm(messages, max_tokens=500):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "anthropic/claude-3.5-sonnet",
+                "model": LLM_MODEL,
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": max_tokens,
@@ -1616,6 +1617,7 @@ async def main():
     print(f"  Wake word: '{WAKE_WORD}'")
     print(f"  Voice: {VOICE}")
     print(f"  User: {USER_NAME}")
+    print(f"  LLM: {LLM_MODEL}")
     print(f"  Modules: {', '.join(enabled) if enabled else 'none'}")
     print("━" * 50)
 

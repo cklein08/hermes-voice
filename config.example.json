@@ -5,6 +5,8 @@
   "work_email": "",
   "gender": "",
   "voice": "en-GB-RyanNeural",
+  "openrouter_api_key": "",
+  "llm_model": "google/gemini-2.5-flash",
   "whisper_model": "base",
   "wake_word": "hermes",
   "hermes_base": "",

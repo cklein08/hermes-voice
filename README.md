@@ -133,6 +133,22 @@ Hermes comes with 5 British neural voices. The wizard lets you preview each one:
 | **Microphone** | For voice commands |
 | **API Key** | Free from [openrouter.ai/keys](https://openrouter.ai/keys) — takes 30 seconds |
 
+### LLM Model
+
+Hermes uses **Google Gemini 2.5 Flash** by default via OpenRouter — fast, cheap (~$0.15/$0.60 per M tokens), and great at tool routing for voice assistants.
+
+To change the model, edit `config.json`:
+```json
+"llm_model": "google/gemini-2.5-flash"
+```
+
+Other options:
+| Model | Cost (in/out per M tokens) | Best for |
+|-------|---------------------------|----------|
+| `google/gemini-2.5-flash` | $0.15 / $0.60 | Default — fast, cheap, good at JSON |
+| `anthropic/claude-sonnet-4` | $3 / $15 | Smarter multi-turn, higher cost |
+| `google/gemini-2.5-pro` | $1.25 / $10 | Complex reasoning, mid-range cost |
+
 ### Optional Tools (for full power)
 
 These unlock email, calendar, and reminder features. The wizard will offer to install them for you:
