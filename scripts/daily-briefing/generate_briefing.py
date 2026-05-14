@@ -41,6 +41,11 @@ def generate_html(data):
     s = data["sections"]
     summary = data["summary"]
 
+    # Date folder for NotePlan: "Work/May 14/" instead of "Work/"
+    dt = datetime.strptime(data["date"], "%Y-%m-%d")
+    date_folder = dt.strftime("%B %d").replace(" 0", " ")  # "May 14" not "May 04"
+    np_folder = f"Work/{date_folder}"  # e.g. "Work/May 14"
+
     # Summary bar text
     summary_parts = []
     if summary["attention_count"] > 0:
@@ -150,7 +155,7 @@ def generate_html(data):
             tps_rows = '<div class="empty-state">No active/urgent clients found in NotePlan Clients 2026</div>'
 
         client_names = ", ".join([c["name"] for c in s["tps"]["clients"]])
-        tps_prompt = f"Generate TPS Tracker updates for these clients: {client_names}. For EACH client provide: (1) Touch Points — select activity type + comment about what I did this week, (2) Executive Summary — brief high-level for management reporting. Base it on this week's meeting notes and calendar activity. Format ready to copy-paste into TPS Tracker at https://6gc.short.gy/xsctracker. IMPORTANT: DR numbers must be formatted as DR1234567 (no hash, no space — NOT DR#1234567). Also save to NotePlan Work folder as 'TPS Tracker Update — {esc(data['date'])}.txt' using shell cat redirect."
+        tps_prompt = f"Generate TPS Tracker updates for these clients: {client_names}. For EACH client provide: (1) Touch Points — select activity type + comment about what I did this week, (2) Executive Summary — brief high-level for management reporting. Base it on this week's meeting notes and calendar activity. Format ready to copy-paste into TPS Tracker at https://6gc.short.gy/xsctracker. IMPORTANT: DR numbers must be formatted as DR1234567 (no hash, no space — NOT DR#1234567). Also save to NotePlan {np_folder}/ folder as 'TPS Tracker Update — {esc(data['date'])}.txt' using shell cat redirect."
 
         tps_html = f'''
         <div class="card full-width" id="section-tps">
@@ -185,7 +190,7 @@ def generate_html(data):
     product_rows = ""
     for i, res in enumerate(s["product_updates"]["resources"]):
         pid = f"prod-{i}"
-        check_prompt = f"Check {res['name']} for the latest Adobe product updates. Summarize what is new in 1-2 lines per update, include direct links. Then save a note to NotePlan Work folder as a .txt file titled 'Product Updates — {data['date']}' (append if it already exists). Use shell cat redirect to write. Format: ## {res['name']}\\n- [update summary] — [link]\\n"
+        check_prompt = f"Check {res['name']} for the latest Adobe product updates. Summarize what is new in 1-2 lines per update, include direct links. Then save a note to NotePlan {np_folder}/ folder as a .txt file titled 'Product Updates — {data['date']}' (append if it already exists). Use shell cat redirect to write. Format: ## {res['name']}\\n- [update summary] — [link]\\n"
         product_rows += f'''
         <div class="resource-row" id="row-{pid}" data-section="products" data-actionable="1">
             <span>{esc(res["icon"])}</span>
@@ -198,7 +203,7 @@ def generate_html(data):
     field_rows = ""
     for i, res in enumerate(s["field_readiness"]["resources"]):
         fid = f"field-{i}"
-        check_prompt = f"Check {res['name']} for new field enablement and product communication updates for customers. Summarize what is new in 1-2 lines per update with links. Save to NotePlan Work folder as 'Field Readiness Updates — {data['date']}.txt' (append if exists). Use shell cat redirect to write."
+        check_prompt = f"Check {res['name']} for new field enablement and product communication updates for customers. Summarize what is new in 1-2 lines per update with links. Save to NotePlan {np_folder}/ folder as 'Field Readiness Updates — {data['date']}.txt' (append if exists). Use shell cat redirect to write."
         field_rows += f'''
         <div class="resource-row" id="row-{fid}" data-section="field" data-actionable="1">
             <span>{esc(res["icon"])}</span>
@@ -211,7 +216,7 @@ def generate_html(data):
     ai_rows = ""
     for i, src in enumerate(s["ai_watch"]["sources"]):
         aid = f"ai-{i}"
-        check_prompt = f"Check {src['name']} for the latest AI and technology developments from the past 48 hours. Focus on what impacts Adobe products (AEP, AJO, AEM, GenStudio, Firefly) and how it affects our customer proposals. Summarize 1-2 lines per development with links. Save to NotePlan Work folder as 'AI Tech Watch — {data['date']}.txt' (append if exists). Use shell cat redirect to write."
+        check_prompt = f"Check {src['name']} for the latest AI and technology developments from the past 48 hours. Focus on what impacts Adobe products (AEP, AJO, AEM, GenStudio, Firefly) and how it affects our customer proposals. Summarize 1-2 lines per development with links. Save to NotePlan {np_folder}/ folder as 'AI Tech Watch — {data['date']}.txt' (append if exists). Use shell cat redirect to write."
         ai_rows += f'''
         <div class="resource-row" id="row-{aid}" data-section="ai" data-actionable="1">
             <span>{esc(src["icon"])}</span>
@@ -226,7 +231,7 @@ def generate_html(data):
             "steps.push('', '6. Generate TPS Tracker updates for all active/urgent clients. "
             "For EACH: (1) Touch Points with activity type + comment, (2) Executive Summary "
             "for management. Base on this weeks meetings and calendar. Format for copy-paste "
-            "into TPS Tracker. Save to NotePlan Work folder as TPS Tracker Update ' + theDate "
+            "into TPS Tracker. Save to NotePlan ' + npFolder + '/ folder as TPS Tracker Update ' + theDate "
             "+ '.txt using shell cat redirect.');"
         )
     else:
@@ -641,7 +646,7 @@ body {{
         <div class="card-content" id="content-slack">
             {slack_rows}
             <div class="card-actions">
-                <a href="hermes://prompt/Check all Adobe product Slack channels ({', '.join(ch['name'] for ch in s['slack_channels']['channels'])}) for updates from the past 24 hours. Summarize what is new in 1-2 lines per channel with links to relevant threads. Save to NotePlan Work folder as 'Slack Channel Updates — {esc(data['date'])}.txt' using shell cat redirect. Group by channel." class="action-btn" id="checkall-slack" onclick="runCheckAll(this, 'slack')">Check All Channels &amp; Save to NotePlan</a>
+                <a href="hermes://prompt/Check all Adobe product Slack channels ({', '.join(ch['name'] for ch in s['slack_channels']['channels'])}) for updates from the past 24 hours. Summarize what is new in 1-2 lines per channel with links to relevant threads. Save to NotePlan {np_folder}/ folder as 'Slack Channel Updates — {esc(data['date'])}.txt' using shell cat redirect. Group by channel." class="action-btn" id="checkall-slack" onclick="runCheckAll(this, 'slack')">Check All Channels &amp; Save to NotePlan</a>
             </div>
         </div>
     </div>
@@ -657,7 +662,7 @@ body {{
         <div class="card-content" id="content-products">
             {product_rows}
             <div class="card-actions">
-                <a href="hermes://prompt/Check ALL Adobe product sources (Experience League release notes, developer blog, tech blog) for updates from the past week. For each update found: 1-2 line summary + direct link. Save everything to NotePlan Work folder as 'Product Updates — {esc(data['date'])}.txt' using shell cat redirect. Group by source." class="action-btn" id="checkall-products" onclick="runCheckAll(this, 'products')">Check All &amp; Save to NotePlan</a>
+                <a href="hermes://prompt/Check ALL Adobe product sources (Experience League release notes, developer blog, tech blog) for updates from the past week. For each update found: 1-2 line summary + direct link. Save everything to NotePlan {np_folder}/ folder as 'Product Updates — {esc(data['date'])}.txt' using shell cat redirect. Group by source." class="action-btn" id="checkall-products" onclick="runCheckAll(this, 'products')">Check All &amp; Save to NotePlan</a>
             </div>
         </div>
     </div>
@@ -673,7 +678,7 @@ body {{
         <div class="card-content" id="content-field">
             {field_rows}
             <div class="card-actions">
-                <a href="hermes://prompt/Check Adobe field readiness and enablement resources for new product communication updates. What new messaging, talk tracks, or competitive positioning should I know about? Summarize 1-2 lines per update with links. Save to NotePlan Work folder as 'Field Readiness Updates — {esc(data['date'])}.txt' using shell cat redirect." class="action-btn" id="checkall-field" onclick="runCheckAll(this, 'field')">Check All &amp; Save to NotePlan</a>
+                <a href="hermes://prompt/Check Adobe field readiness and enablement resources for new product communication updates. What new messaging, talk tracks, or competitive positioning should I know about? Summarize 1-2 lines per update with links. Save to NotePlan {np_folder}/ folder as 'Field Readiness Updates — {esc(data['date'])}.txt' using shell cat redirect." class="action-btn" id="checkall-field" onclick="runCheckAll(this, 'field')">Check All &amp; Save to NotePlan</a>
             </div>
         </div>
     </div>
@@ -689,7 +694,7 @@ body {{
         <div class="card-content" id="content-ai">
             {ai_rows}
             <div class="card-actions">
-                <a href="hermes://prompt/Give me a briefing on the latest AI developments from the past 48 hours. Focus on: (1) what impacts Adobe products — AEP, AJO, AEM, GenStudio, Firefly, Target, (2) how it affects our customer proposals, (3) competitive moves from Salesforce, Google, Microsoft. Summarize 1-2 lines per development with direct links. Save to NotePlan Work folder as 'AI Tech Watch — {esc(data['date'])}.txt' using shell cat redirect." class="action-btn" id="checkall-ai" onclick="runCheckAll(this, 'ai')">Full AI Briefing &amp; Save to NotePlan</a>
+                <a href="hermes://prompt/Give me a briefing on the latest AI developments from the past 48 hours. Focus on: (1) what impacts Adobe products — AEP, AJO, AEM, GenStudio, Firefly, Target, (2) how it affects our customer proposals, (3) competitive moves from Salesforce, Google, Microsoft. Summarize 1-2 lines per development with direct links. Save to NotePlan {np_folder}/ folder as 'AI Tech Watch — {esc(data['date'])}.txt' using shell cat redirect." class="action-btn" id="checkall-ai" onclick="runCheckAll(this, 'ai')">Full AI Briefing &amp; Save to NotePlan</a>
             </div>
         </div>
     </div>
@@ -897,17 +902,18 @@ function doRefreshNow(btn) {{
     }});
     // Fire comprehensive refresh prompt that runs ALL checks
     const theDate = '{esc(data["date"])}';
+    const npFolder = 'Work/{date_folder}';
     const steps = [
         'Full daily briefing dashboard refresh. Do ALL of these steps:',
         '',
         '1. Run the data collector and HTML generator:',
         '   bash ~/.hermes/scripts/daily-briefing/refresh.sh',
         '',
-        '2. Check ALL Adobe product sources (Experience League release notes, developer blog, tech blog) for updates from the past week. For each update: 1-2 line summary + direct link. Save to NotePlan Work folder as "Product Updates — ' + theDate + '.txt" using shell cat redirect. Group by source.',
+        '2. Check ALL Adobe product sources (Experience League release notes, developer blog, tech blog) for updates from the past week. For each update: 1-2 line summary + direct link. Save to NotePlan ' + npFolder + '/ folder as "Product Updates — ' + theDate + '.txt" using shell cat redirect. Group by source.',
         '',
-        '3. Check Adobe field readiness and enablement resources for new product communication updates. Summarize 1-2 lines per update with links. Save to NotePlan Work folder as "Field Readiness Updates — ' + theDate + '.txt" using shell cat redirect.',
+        '3. Check Adobe field readiness and enablement resources for new product communication updates. Summarize 1-2 lines per update with links. Save to NotePlan ' + npFolder + '/ folder as "Field Readiness Updates — ' + theDate + '.txt" using shell cat redirect.',
         '',
-        '4. Full AI briefing: latest AI developments from past 48 hours. Focus on: (a) what impacts Adobe products — AEP, AJO, AEM, GenStudio, Firefly, Target, (b) how it affects customer proposals, (c) competitive moves from Salesforce, Google, Microsoft. Save to NotePlan Work folder as "AI Tech Watch — ' + theDate + '.txt" using shell cat redirect.',
+        '4. Full AI briefing: latest AI developments from past 48 hours. Focus on: (a) what impacts Adobe products — AEP, AJO, AEM, GenStudio, Firefly, Target, (b) how it affects customer proposals, (c) competitive moves from Salesforce, Google, Microsoft. Save to NotePlan ' + npFolder + '/ folder as "AI Tech Watch — ' + theDate + '.txt" using shell cat redirect.',
         '',
         '5. Check all Adobe product Slack channels for updates from the past 24 hours.'
     ];
